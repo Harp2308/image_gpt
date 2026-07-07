@@ -34,6 +34,7 @@ def pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 200) -> list[str]:
 
     doc.close()
     return image_paths
+
 def excel_to_images(
     excel_path: str,
     pdf_dir: str,
@@ -84,6 +85,14 @@ def excel_to_pdf(excel_path: str, pdf_dir: str) -> str:
     wb.Close(False)
     excel.Quit()
     return pdf_path
+
+
+
+
+
+
+
+
 
 # def excel_to_pdf(excel_path: str, pdf_dir: str) -> str:
 #     excel_path = Path(excel_path).resolve()

@@ -19,6 +19,7 @@ data
 database
 generation
 indexing
+ingestion1
 retrieval
 scripts
 storage
@@ -28,3 +29,5 @@ key.json
 ingestion1
 output
 docs
+
+ops2

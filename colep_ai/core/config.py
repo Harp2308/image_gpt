@@ -1,40 +1,55 @@
+"""
+Central config. Everything path-related lives here — no module in
+ingestion/ should hardcode a path or read os.environ directly.
+"""
+from __future__ import annotations
+
+import os
 from pathlib import Path
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="COLEP_", extra="ignore")
+class Settings:
+    def __init__(self):
+        self.output_root = Path(os.environ.get("COLEP_OUTPUT_ROOT", "outputs")).resolve()
+        self.gcp_key_path = Path(os.environ.get("GCP_VISION_KEY_PATH", "key.json")).resolve()
+        self.anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
 
-    base_dir: Path = Field(default=Path(__file__).resolve().parent.parent)
-    gcp_key_filename: str = r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\key.json"
-    pdf_render_dpi: int = 200
+    # ---- per-document output tree ----
+    def doc_root(self, source_file: str) -> Path:
+        return self.output_root / source_file
 
-    output_dir_name: str = "outputs"
-    pdfs_dir_name: str = "pdfs"
-    page_images_dir_name: str = "page_images"
-    crops_dir_name: str = "crops"
-    results_dir_name: str = "results"
-    reconstructed_dir_name: str = "reconstructed"
+    def pdf_dir(self, source_file: str) -> Path:
+        return self.doc_root(source_file) / "pdf"
 
-    @property
-    def output_dir(self) -> Path: return self.base_dir / self.output_dir_name
-    @property
-    def pdfs_dir(self) -> Path: return self.output_dir / self.pdfs_dir_name
-    @property
-    def page_images_dir(self) -> Path: return self.output_dir / self.page_images_dir_name
-    @property
-    def crops_dir(self) -> Path: return self.output_dir / self.crops_dir_name
-    @property
-    def results_dir(self) -> Path: return self.output_dir / self.results_dir_name
-    @property
-    def reconstructed_dir(self) -> Path: return self.output_dir / self.reconstructed_dir_name
-    @property
-    def gcp_key_path(self) -> Path: return self.base_dir / self.gcp_key_filename
+    def page_images_dir(self, source_file: str) -> Path:
+        return self.doc_root(source_file) / "pdf_pages_images"
 
-    def ensure_dirs(self) -> None:
-        for d in [self.pdfs_dir, self.page_images_dir, self.crops_dir,
-                  self.results_dir, self.reconstructed_dir]:
+    def ocr_dir(self, source_file: str) -> Path:
+        return self.doc_root(source_file) / "ocr"
+
+    def crops_dir(self, source_file: str) -> Path:
+        # extract_images_from_page writes {output_dir}/crops and {output_dir}/marked
+        # so this IS the output_dir passed to it, per page subfolder.
+        return self.doc_root(source_file) / "crops"
+
+    def results_dir(self, source_file: str) -> Path:
+        return self.doc_root(source_file) / "results"
+    
+    def combined_dir(self, source_file: str) -> Path:
+        return self.doc_root(source_file) / "combined"
+
+    def ensure_doc_dirs(self, source_file: str) -> None:
+        for d in (
+            self.pdf_dir(source_file),
+            self.page_images_dir(source_file),
+            self.ocr_dir(source_file),
+            self.crops_dir(source_file),
+            self.results_dir(source_file),
+            self.combined_dir(source_file),
+        ):
             d.mkdir(parents=True, exist_ok=True)
 
 
