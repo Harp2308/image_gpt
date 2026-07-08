@@ -1,25 +1,55 @@
-"""
-Central config. Everything path-related lives here — no module in
-ingestion/ should hardcode a path or read os.environ directly.
-"""
-from __future__ import annotations
-
-import os
 from pathlib import Path
-from dotenv import load_dotenv
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+
+class Settings(BaseSettings):
+    # ------------------------------------------------------------------
+    # Environment
+    # ------------------------------------------------------------------
+    ENV: str = "development"
+
+    # ------------------------------------------------------------------
+    # Paths
+    # ------------------------------------------------------------------
+    OUTPUT_ROOT: Path = Path("outputs")
+    GCP_VISION_KEY_PATH: Path = Path("key.json")
+
+    # ------------------------------------------------------------------
+    # Anthropic
+    # ------------------------------------------------------------------
+    ANTHROPIC_API_KEY: SecretStr = SecretStr("")
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5"
+
+    # ------------------------------------------------------------------
+    # Google
+    # ------------------------------------------------------------------
+    GOOGLE_APPLICATION_CREDENTIALS: Path = Path("key.json")
+
+    # ------------------------------------------------------------------
+    # OpenAI
+    # ------------------------------------------------------------------
+    OPENAI_API_KEY: SecretStr = SecretStr("")
+
+    # ------------------------------------------------------------------
+    # Qdrant
+    # ------------------------------------------------------------------
+    QDRANT_URL: str = ""
+    QDRANT_API_KEY: SecretStr = SecretStr("")
 
 
-class Settings:
-    def __init__(self):
-        self.output_root = Path(os.environ.get("COLEP_OUTPUT_ROOT", "outputs")).resolve()
-        self.gcp_key_path = Path(os.environ.get("GCP_VISION_KEY_PATH", "key.json")).resolve()
-        self.anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
-    # ---- per-document output tree ----
+    # ==============================================================
+    # Output Directory Helpers
+    # ==============================================================
+
     def doc_root(self, source_file: str) -> Path:
-        return self.output_root / source_file
+        return self.OUTPUT_ROOT / source_file
 
     def pdf_dir(self, source_file: str) -> Path:
         return self.doc_root(source_file) / "pdf"
@@ -31,26 +61,26 @@ class Settings:
         return self.doc_root(source_file) / "ocr"
 
     def crops_dir(self, source_file: str) -> Path:
-        # extract_images_from_page writes {output_dir}/crops and {output_dir}/marked
-        # so this IS the output_dir passed to it, per page subfolder.
         return self.doc_root(source_file) / "crops"
 
     def results_dir(self, source_file: str) -> Path:
         return self.doc_root(source_file) / "results"
-    
+
     def combined_dir(self, source_file: str) -> Path:
         return self.doc_root(source_file) / "combined"
 
     def ensure_doc_dirs(self, source_file: str) -> None:
-        for d in (
+        directories = (
             self.pdf_dir(source_file),
             self.page_images_dir(source_file),
             self.ocr_dir(source_file),
             self.crops_dir(source_file),
             self.results_dir(source_file),
             self.combined_dir(source_file),
-        ):
-            d.mkdir(parents=True, exist_ok=True)
+        )
+
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()

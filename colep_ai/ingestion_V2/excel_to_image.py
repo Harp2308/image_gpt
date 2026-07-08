@@ -3,13 +3,15 @@ Excel -> PDF via win32com (requires a live Excel install, Windows only).
 Call excel_to_pdf ONCE per document — spinning up Excel.Application per
 page is not viable (COM startup cost, single-threaded, file locking).
 """
-import logging
-from pathlib import Path
 
+from pathlib import Path
 import fitz
 import win32com.client
 
-logger = logging.getLogger(__name__)
+from colep_ai.core.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 
 def excel_to_pdf(excel_path: str, pdf_dir: str) -> str:

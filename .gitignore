@@ -16,18 +16,21 @@ outputsv1
 *.png
 
 data
-database
 generation
-indexing
-ingestion1
+ingestion
 retrieval
 scripts
 storage
 ops
 .env
 key.json
-ingestion1
 output
 docs
 
 ops2
+outputs_new1
+outputs_old
+
+tests
+
+logs

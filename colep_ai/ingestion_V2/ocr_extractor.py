@@ -4,7 +4,10 @@ from pathlib import Path
 from google.cloud import vision
 from google.oauth2 import service_account
 
-logger = logging.getLogger(__name__)
+from colep_ai.core.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 
 def get_vision_client(credentials_path: str) -> vision.ImageAnnotatorClient:

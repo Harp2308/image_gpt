@@ -8,7 +8,6 @@ run_pipeline() repeatedly for different pages of the same doc will NOT
 re-trigger Excel COM or re-render pages already on disk.
 """
 import json
-import logging
 from pathlib import Path
 
 import anthropic
@@ -19,9 +18,14 @@ from colep_ai.ingestion_V2.excel_to_image import excel_to_pdf, pdf_to_images
 from colep_ai.ingestion_V2.ocr_extractor import image_to_vision_json
 from colep_ai.ingestion_V2.pdf_to_images import extract_images_from_page
 from colep_ai.ingestion_V2.xlsx_group_resolver import XlsxGroupResolver
-from colep_ai.ingestion_V2.image_group_resolver import associate_ocr_with_images
-from colep_ai.ingestion_V2.image_combiner import reconstruct_all_steps,group_image_ids_by_step
-logger = logging.getLogger(__name__)
+from colep_ai.ingestion_V2.image_group_resolver import extract_steps
+from colep_ai.ingestion_V2.image_combiner import reconstruct_all_steps,group_image_ids_by_entry
+from colep_ai.ingestion_V2.utils import normalize_filename
+
+from colep_ai.core.logger import get_logger
+
+logger = get_logger("Ingestion_pipeline")
+
 
 
 def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
@@ -52,7 +56,7 @@ def run_pipeline(
     claude_client: anthropic.Anthropic,
 ) -> dict:
     excel_path = Path(excel_path)
-    source_file = excel_path.stem
+    source_file = normalize_filename(excel_path.stem)
     page_idx = page_number - 1  # 0-based, internal only past this point
 
     settings.ensure_doc_dirs(source_file)
@@ -79,6 +83,10 @@ def run_pipeline(
         output_dir=str(page_crops_dir),
         group_resolver=group_resolver,
     )
+    print("*"*50)
+    print(crops_metadata)
+    print("*"*50)
+
     marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
     logger.info("Stage 4 done | crops: %d, marked: %s", len(crops_metadata), marked_image_path)
 
@@ -87,25 +95,25 @@ def run_pipeline(
         result = {"results": [], "warning": "no_images_extracted"}
     else:
         # Stage 5: Claude association -> structured JSON
-        result = associate_ocr_with_images(
-            marked_image_path=str(marked_image_path),
-            ocr_full_text=ocr_data["full_text"],
-            crops_metadata=crops_metadata,
-            source_file=source_file,
-            page_number=page_number,
-            client=claude_client,
-            model=settings.anthropic_model,
-        )
+        result=extract_steps(full_page_image_path=str(marked_image_path),image_meta=crops_metadata)
+        # result = associate_ocr_with_images(
+        #     marked_image_path=str(marked_image_path),
+        #     ocr_full_text=ocr_data["full_text"],
+        #     crops_metadata=crops_metadata,
+        #     source_file=source_file,
+        #     page_number=page_number,
+        #     client=claude_client,
+        #     model=settings.anthropic_model,
+        # )
         out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         logger.info("Saved: %s", out_path)
 
-        logger.info("Stage 5 done | results: %d", len(result.get("results", [])))
-
+        logger.info("Stage 5 done | entries: %d", len(result.get("entries", [])))
 
     # Stage 6: reconstruct grouped step images
-    grouped = group_image_ids_by_step(result.get("results", []))
+    grouped = group_image_ids_by_entry(result.get("entries", []))
     recon_status = reconstruct_all_steps(
             grouped=grouped,
             page_num=page_number,
@@ -121,3 +129,14 @@ def run_pipeline(
     
 
     return "result"
+
+
+import fitz
+
+def get_total_pages(excel_path: str) -> int:
+    excel_path = Path(excel_path)
+    source_file = excel_path.stem
+    settings.ensure_doc_dirs(source_file)
+    pdf_path = _ensure_pdf(excel_path, source_file)
+    with fitz.open(pdf_path) as doc:
+        return doc.page_count
