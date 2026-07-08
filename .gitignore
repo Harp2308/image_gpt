@@ -16,9 +16,7 @@ outputsv1
 *.png
 
 data
-generation
 ingestion
-retrieval
 scripts
 storage
 ops
@@ -30,7 +28,6 @@ docs
 ops2
 outputs_new1
 outputs_old
-
-tests
+prompts
 
 logs
