@@ -90,22 +90,16 @@ def run_pipeline(
     marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
     logger.info("Stage 4 done | crops: %d, marked: %s", len(crops_metadata), marked_image_path)
 
+    # Stage 5: Claude association -> structured JSON
+    out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
+        
     if not crops_metadata:
         logger.warning("No images extracted on page %d — skipping Claude association", page_number)
         result = {"results": [], "warning": "no_images_extracted"}
     else:
-        # Stage 5: Claude association -> structured JSON
         result=extract_steps(full_page_image_path=str(marked_image_path),image_meta=crops_metadata)
-        # result = associate_ocr_with_images(
-        #     marked_image_path=str(marked_image_path),
-        #     ocr_full_text=ocr_data["full_text"],
-        #     crops_metadata=crops_metadata,
-        #     source_file=source_file,
-        #     page_number=page_number,
-        #     client=claude_client,
-        #     model=settings.anthropic_model,
-        # )
-        out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
+        result["page_number"] = page_number
+        result["source_file"] = source_file
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         logger.info("Saved: %s", out_path)
@@ -115,15 +109,31 @@ def run_pipeline(
     # Stage 6: reconstruct grouped step images
     grouped = group_image_ids_by_entry(result.get("entries", []))
     recon_status = reconstruct_all_steps(
-            grouped=grouped,
-            page_num=page_number,
-            crops_root=settings.crops_dir(source_file),
-            output_dir=settings.combined_dir(source_file),
-        )
-    failed_steps = [k for k, v in recon_status.items() if not v]
+        grouped=grouped,
+        page_num=page_number,
+        crops_root=settings.crops_dir(source_file),
+        output_dir=settings.combined_dir(source_file),
+    )
+
+    # Patch is_combined + combined_image onto each entry
+    for entry in result.get("entries", []):
+        entry_id = entry["entry_id"]
+        if not entry.get("image_ids"):
+            entry["is_combined"] = False
+            entry["combined_image"] = None
+            continue
+        info = recon_status.get(entry_id, {})
+        entry["is_combined"] = info.get("is_combined", False)
+        entry["combined_image"] = info.get("combined_image", None)
+
+    failed_steps = [k for k, v in recon_status.items() if v.get("success") is False]
     if failed_steps:
         logger.warning(f"Stage 6: reconstruction failed for steps {failed_steps}")
-    result["reconstruction_status"] = recon_status
+
+    # Save updated result with is_combined patched in
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
     logger.info("Stage 6 done | steps: %d, failed: %d", len(recon_status), len(failed_steps))
 
     

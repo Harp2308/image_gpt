@@ -15,11 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def main(excel_path:str):
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--excel", required=True, help="Path to .xlsx file")
-    # parser.add_argument("--page", type=int, required=True, help="1-based page number")
-    # args = parser.parse_args()
-
     vision_client = get_vision_client(str(settings.GOOGLE_APPLICATION_CREDENTIALS))
     claude_client = anthropic.Anthropic()
     total_pages = get_total_pages(excel_path)

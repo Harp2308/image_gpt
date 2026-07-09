@@ -7,6 +7,9 @@ from collections import defaultdict
 from typing import Any
 import re
 import cv2
+from collections import defaultdict
+from typing import Any
+import hashlib
 
 from colep_ai.core.logger import get_logger
 
@@ -132,9 +135,6 @@ def reconstruct(page_path, crop_paths):
 
     return canvas
 
-from collections import defaultdict
-from typing import Any
-import hashlib
 
 def make_step_uid(image_ids: list[str], length: int = 4) -> str:
     """Deterministic — same image_ids always produce the same uid. Idempotent reruns."""
@@ -188,14 +188,13 @@ def get_combined_output_path(
     uid = make_step_uid(image_ids)
     return page_dir / f"page_{page_num}_{step_key}_{uid}.png"
 
-
 def reconstruct_all_steps(
     grouped: dict[Any, list[str]],
     page_num: int,
     crops_root: Path,
     output_dir: Path,
     reconstruct_fn=reconstruct,
-) -> dict[Any, bool]:
+) -> dict[Any, dict]:  # changed: value is now a dict, not bool
     page_dir = crops_root / f"page_{page_num}"
     page_path = page_dir / "marked" / f"page_{page_num}_marked.png"
     crops_dir = page_dir / "crops"
@@ -204,30 +203,30 @@ def reconstruct_all_steps(
     if not page_path.exists():
         raise FileNotFoundError(f"Marked page image missing: {page_path}")
 
-    status: dict[Any, bool] = {}
+    status: dict[Any, dict] = {}
 
     for step_key, image_ids in grouped.items():
         if len(image_ids) < 2:
             logger.info(f"Step {step_key}: single image, no combine needed — skipped")
-            status[step_key] = None  # not True (success) or False (failure) — not applicable
+            status[step_key] = {"success": None, "is_combined": False, "combined_image": None}
             continue
 
         crop_paths = [crops_dir / f"{img_id}.png" for img_id in image_ids]
         missing = [p for p in crop_paths if not p.exists()]
         if missing:
             logger.error(f"Step {step_key}: missing crops {missing} — skipping")
-            status[step_key] = False
+            status[step_key] = {"success": False, "is_combined": False, "combined_image": None}
             continue
 
         result = reconstruct_fn(str(page_path), [str(p) for p in crop_paths])
         if result is None:
             logger.error(f"Step {step_key}: reconstruct_fn returned None — skipping")
-            status[step_key] = False
+            status[step_key] = {"success": False, "is_combined": False, "combined_image": None}
             continue
 
         out_path = get_combined_output_path(output_dir, page_num, step_key, image_ids)
         cv2.imwrite(str(out_path), result)
         logger.info(f"Step {step_key}: saved {out_path}")
-        status[step_key] = True
+        status[step_key] = {"success": True, "is_combined": True, "combined_image": out_path.name}
 
     return status

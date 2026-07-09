@@ -6,7 +6,8 @@ from datetime import datetime
 import anthropic
 
 from colep_ai.core.config import settings
-from colep_ai.indexing.pipeline import run_indexing
+# from colep_ai.indexing.pipeline import run_indexing
+from colep_ai.indexing.page_pipeline import run_page_indexing
 from colep_ai.indexing.embedder import get_openai_client
 from colep_ai.core.logger import get_logger
 
@@ -18,7 +19,8 @@ def main(dir_path:str):
     start_time=datetime.now()
     logger.info(f"process started at={start_time.strftime('%Y-%m-%dT%H:%M:%S')} ")
 
-    run_indexing(dir_path,openai_client)
+    # run_indexing(dir_path,openai_client)
+    run_page_indexing(dir_path,openai_client)
 
     end_time = datetime.now()
     duration = end_time - start_time
@@ -26,5 +28,5 @@ def main(dir_path:str):
 
 
 if __name__ == "__main__":
-    d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
+    d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e3\results"
     main(d)

@@ -37,7 +37,7 @@ def excel_to_pdf(excel_path: str, pdf_dir: str) -> str:
     if not Path(pdf_path).exists():
         raise RuntimeError(f"Excel export failed, no PDF at {pdf_path}")
 
-    logger.info("excel_to_pdf: %s -> %s", excel_path, pdf_path)
+    logger.info(f"excel_to_pdf:{excel_path} ->{pdf_path}")
     return pdf_path
 
 
