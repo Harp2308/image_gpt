@@ -31,10 +31,11 @@ logger = get_logger("Ingestion_pipeline")
 def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
     pdf_path = settings.pdf_dir(source_file) / f"{source_file}.pdf"
     if pdf_path.exists():
-        logger.info("Stage 1 skipped (cached) | pdf: %s", pdf_path)
+        logger.info(f"Stage 1 skipped (cached) | pdf: {pdf_path}")
         return pdf_path
     result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)))
-    logger.info("Stage 1 done | pdf: %s", result_path)
+    logger.info(f"Stage 1 done | pdf: {result_path}")
+
     return Path(result_path)
 
 
@@ -71,7 +72,7 @@ def run_pipeline(
     ocr_json_path = image_to_vision_json(str(page_img), str(settings.ocr_dir(source_file)), vision_client)
     with open(ocr_json_path, encoding="utf-8") as f:
         ocr_data = json.load(f)
-    logger.info("Stage 3 done | blocks: %d", len(ocr_data["blocks"]))
+    logger.info(f"Stage 3 done | blocks: {len(ocr_data['blocks'])}")
 
     # Stage 4: CV crops with xlsx-group-aware union merge
     page_crops_dir = settings.crops_dir(source_file) / f"page_{page_number}"
@@ -88,13 +89,14 @@ def run_pipeline(
     print("*"*50)
 
     marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
-    logger.info("Stage 4 done | crops: %d, marked: %s", len(crops_metadata), marked_image_path)
+    logger.info(f"Stage 4 done | crops: {len(crops_metadata)}, marked: {marked_image_path}")
+
 
     # Stage 5: Claude association -> structured JSON
     out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
         
     if not crops_metadata:
-        logger.warning("No images extracted on page %d — skipping Claude association", page_number)
+        logger.warning(f"No images extracted on page { page_number }— skipping Claude association")
         result = {"results": [], "warning": "no_images_extracted"}
     else:
         result=extract_steps(full_page_image_path=str(marked_image_path),image_meta=crops_metadata)
@@ -102,9 +104,10 @@ def run_pipeline(
         result["source_file"] = source_file
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        logger.info("Saved: %s", out_path)
+        logger.info(f"Saved: {out_path}")
 
-        logger.info("Stage 5 done | entries: %d", len(result.get("entries", [])))
+        logger.info(f"Stage 5 done | entries: {len(result.get('entries', []))}")
+
 
     # Stage 6: reconstruct grouped step images
     grouped = group_image_ids_by_entry(result.get("entries", []))
@@ -134,7 +137,7 @@ def run_pipeline(
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    logger.info("Stage 6 done | steps: %d, failed: %d", len(recon_status), len(failed_steps))
+    logger.info(f"Stage 6 done | steps: {len(recon_status)}, failed: {len(failed_steps)}")
 
     
 

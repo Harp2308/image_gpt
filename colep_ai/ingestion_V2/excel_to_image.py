@@ -59,7 +59,7 @@ def pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 200) -> list[str]:
     finally:
         doc.close()
 
-    logger.info("pdf_to_images: %s -> %d pages", pdf_path, len(image_paths))
+    logger.info(f"pdf_to_images:{pdf_path} -> { len(image_paths)} pages")
     return image_paths
 
 
@@ -76,8 +76,7 @@ def normalize_sheet_pagination(wb, logger) -> dict:
 
         if pages_before > 1:
             logger.warning(
-                "Sheet '%s' overflows (%d pages, zoom=%s) — forcing fit-to-page",
-                ws.Name, pages_before, ps.Zoom
+                f"Sheet '{ ws.Name}' overflows ({pages_before} pages, zoom={ps.Zoom}) — forcing fit-to-page"               
             )
             ps.Zoom = False
             ps.FitToPagesWide = 1
@@ -89,25 +88,3 @@ def normalize_sheet_pagination(wb, logger) -> dict:
         report[ws.Name] = {"before": pages_before, "after": pages_after}
 
     return report
-# def check_and_fix_scaling(wb, logger) -> dict:
-#     """Detect non-standard page scaling per sheet, force fit-to-page,
-#     and return a report for observability/alerting."""
-#     report = {}
-#     for ws in wb.Worksheets:
-#         ps = ws.PageSetup
-#         original_zoom = ps.Zoom      # False if FitToPages is used, else % value
-#         original_scale = ps.Zoom if ps.Zoom else None
-
-#         is_default = (ps.Zoom == 100 or ps.Zoom is False and ps.FitToPagesWide == 1)
-#         report[ws.Name] = {
-#             "had_scale": original_scale,
-#             "was_default_100": (original_scale == 100),
-#         }
-#         if original_scale == 100:
-#             logger.warning("Sheet '%s' had no scaling set (100%% default) — forcing fit-to-page", ws.Name)
-
-#         ps.Zoom = False
-#         ps.FitToPagesWide = 1
-#         ps.FitToPagesTall = False
-
-#     return report

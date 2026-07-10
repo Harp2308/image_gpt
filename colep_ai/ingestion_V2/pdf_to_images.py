@@ -111,7 +111,7 @@ def extract_images_from_page(
         doc = fitz.open(pdf_path)
         page = doc[page_number]
     except Exception:
-        logger.exception("Failed to open page %s of %s", page_number, pdf_path)
+        logger.exception(f"Failed to open page {page_number} of {pdf_path}")
         raise
 
     zoom = dpi / 72
@@ -173,7 +173,7 @@ def extract_images_from_page(
 
     for x0, y0, x1, y1 in final_regions:
         if x1 <= x0 or y1 <= y0:
-            logger.warning("Skipping zero-size region on %s: %s", page_label, (x0, y0, x1, y1))
+            logger.warning(f"Skipping zero-size region on { page_label}: {(x0, y0, x1, y1)}" )
             continue
 
         name = f"{page_label}_{uuid.uuid4().hex[:4]}"
@@ -181,7 +181,7 @@ def extract_images_from_page(
 
         crop_path = crops_dir / f"{name}.png"
         if not cv2.imwrite(str(crop_path), crop):
-            logger.error("Failed to write crop %s", crop_path)
+            logger.error(f"Failed to write crop {crop_path}" )
             continue
 
         cv2.rectangle(visual, (x0, y0), (x1, y1), (0, 255, 0), 3)
@@ -210,7 +210,7 @@ def extract_images_from_page(
 
     marked_path = marked_dir / f"{page_label}_marked.png"
     if not cv2.imwrite(str(marked_path), visual):
-        logger.error("Failed to write marked page image %s", marked_path)
+        logger.error(f"Failed to write marked page image {marked_path}" )
 
     doc.close()
 

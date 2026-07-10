@@ -54,8 +54,8 @@ def chunk_page_json(data: dict, source_file: str, page_number: int) -> list[dict
     for entry in data.get("entries", []):
         if not isinstance(entry, dict):
             logger.warning(
-                "Skipping malformed entry (not dict) in %s page %d: %r",
-                source_file, page_number, entry
+                f"Skipping malformed entry (not dict) in {source_file} page {page_number}:{entry}",
+                
             )
             continue
         text = _embedding_text(entry)

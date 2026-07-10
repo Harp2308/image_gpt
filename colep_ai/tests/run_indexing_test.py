@@ -12,7 +12,7 @@ def run_indexing_from_folder(results_dir: str, source_file: str):
     results_dir = Path(results_dir)
     chunks = chunk_all_pages(results_dir, source_file)
     if not chunks:
-        logger.warning("No chunks found in %s for %s", results_dir, source_file)
+        logger.warning(f"No chunks found in {results_dir} for {source_file}" )
         return
 
     openai_client = get_openai_client()
@@ -23,7 +23,7 @@ def run_indexing_from_folder(results_dir: str, source_file: str):
     ensure_collection(qdrant)
     upsert_chunks(qdrant, chunks, vectors)
 
-    logger.info("Indexed %d chunks for %s", len(chunks), source_file)
+    logger.info(f"Indexed { len(chunks)}chunks for {source_file}")
 
 if __name__ == "__main__":
     run_indexing_from_folder(

@@ -39,9 +39,9 @@ def ensure_page_collection(client: QdrantClient) -> None:
                 ),
             },
         )
-        logger.info("Created collection: %s", PAGE_COLLECTION_NAME)
+        logger.info(f"Created collection: {PAGE_COLLECTION_NAME}")
     else:
-        logger.info("Collection already exists: %s", PAGE_COLLECTION_NAME)
+        logger.info(f"Collection already exists:{ PAGE_COLLECTION_NAME}")
 
 
 def upsert_page_chunks(
@@ -75,7 +75,7 @@ def upsert_page_chunks(
                 break
             except Exception as e:
                 logger.warning(
-                    "Batch %d attempt %d failed: %s", batch_index, attempt + 1, e
+                    f"Batch { batch_index} attempt {attempt + 1 } failed: {e}"
                 )
                 if attempt == max_retries - 1:
                     failed_batches.append(batch_index)
@@ -84,9 +84,7 @@ def upsert_page_chunks(
 
     if failed_batches:
         logger.error(
-            "Failed batches: %s — ~%d points not indexed",
-            failed_batches,
-            len(failed_batches) * UPSERT_BATCH_SIZE,
-        )
+            f"Failed batches: {failed_batches} — ~{len(failed_batches) * UPSERT_BATCH_SIZE} points not indexed",
+          )
 
     return failed_batches

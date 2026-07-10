@@ -27,10 +27,10 @@ def main(excel_path:str):
                 vision_client=vision_client,
                 claude_client=claude_client,
             )
-            logger.info("Page %d done", page)
+            logger.info(f"Page{page}done")
         except Exception as e:
-            logger.error("Page %d failed: %s", page, e, exc_info=True)
+            logger.error(f"Page{ page} failed: {e}", exc_info=True)
             continue
 
 if __name__ == "__main__":
-    main(r"docs\e3.xlsx")
+    main(r"docs\e1.xlsx")
