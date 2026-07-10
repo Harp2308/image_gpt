@@ -247,12 +247,11 @@ def extract_steps(
       if block.type == "tool_use" and block.name == "record_step_image_mapping":
           result = block.input
           if isinstance(result.get("entries"), str):
-              try:
-                  result["entries"] = json.loads(result["entries"])
-              except json.JSONDecodeError:
-                  # Claude returned malformed JSON string — log and return empty entries
-                  logger.error("entries came back as malformed JSON string: %s", result["entries"][:200])
-                  result["entries"] = []
+            try:
+                result["entries"] = parse_llm_json(result["entries"])
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"entries came back as malformed JSON string, parse failed: {e} | raw[:300]: {result['entries'][:300]}")
+                result["entries"] = str(result.get("entries"))
           return result
 
     raise RuntimeError("Model did not return the expected tool call.")

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colep AI — SOP Assistant</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #f5a623;
+    --accent-dim: rgba(245,166,35,0.12);
+    --text: #e8eaf0;
+    --text-muted: #8b8fa8;
+    --green: #3dd68c;
+    --red: #ff6b6b;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; display: flex; flex-direction: column; }
+  header { border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+  header .logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
+  header .tag { font-size: 11px; color: var(--text-muted); background: var(--border); padding: 2px 8px; border-radius: 4px; font-family: var(--mono); }
+  .main { flex: 1; display: grid; grid-template-columns: 420px 1fr; height: calc(100vh - 57px); }
+  .left { border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow-y: auto; }
+  .query-box { display: flex; flex-direction: column; gap: 10px; }
+  label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-family: var(--mono); }
+  textarea { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; padding: 12px; resize: vertical; min-height: 100px; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  input[type=number] { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 8px 10px; width: 70px; outline: none; }
+  button { background: var(--accent); border: none; border-radius: 6px; color: #0f1117; cursor: pointer; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.05em; padding: 10px 20px; text-transform: uppercase; transition: opacity 0.15s; flex: 1; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status { font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-height: 18px; }
+  .status.error { color: var(--red); }
+  .status.ok { color: var(--green); }
+  .citations-header { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-family: var(--mono); padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .citation-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; transition: background 0.1s, border-color 0.1s; }
+  .citation-item:hover { background: var(--surface); }
+  .citation-item.active { background: var(--accent-dim); border-color: var(--accent); }
+  .citation-thumb { width: 56px; height: 42px; object-fit: cover; border-radius: 4px; background: var(--border); flex-shrink: 0; }
+  .citation-thumb-placeholder { width: 56px; height: 42px; border-radius: 4px; background: var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .citation-meta { flex: 1; min-width: 0; }
+  .citation-marker { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 3px; }
+  .citation-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .right { display: flex; flex-direction: column; overflow: hidden; }
+  .answer-area { flex: 1; overflow-y: auto; padding: 32px 40px; }
+  .answer-content { max-width: 720px; }
+  .answer-content h1 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: var(--text); line-height: 1.3; }
+  .answer-content h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-family: var(--mono); margin: 28px 0 14px; }
+  .answer-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .step-block { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+  .step-num { font-family: var(--mono); font-size: 12px; color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 7px; flex-shrink: 0; margin-top: 2px; }
+  .step-body { flex: 1; }
+  .step-text { font-size: 14px; line-height: 1.65; color: var(--text); }
+  .step-text strong { color: #fff; font-weight: 600; }
+  .step-image-wrap { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; display: inline-block; max-width: 100%; }
+  .step-image-wrap:hover { border-color: var(--accent); }
+  .step-image-wrap img { display: block; max-width: 480px; max-height: 280px; object-fit: contain; background: #1e2030; }
+  .empty { color: var(--text-muted); font-size: 14px; padding: 60px 0; text-align: center; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: 90vw; max-height: 90vh; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .modal img { max-width: 80vw; max-height: 75vh; object-fit: contain; border-radius: 6px; }
+  .modal-desc { font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 600px; }
+  .modal-close { align-self: flex-end; background: var(--border); color: var(--text); font-size: 12px; padding: 6px 14px; border-radius: 5px; flex: none; width: auto; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">Colep AI</span>
+  <span class="tag">SOP Assistant — dev</span>
+</header>
+
+<div class="main">
+  <div class="left">
+    <div class="query-box">
+      <label>Query</label>
+      <textarea id="queryInput" placeholder="How do I turn on the line?"></textarea>
+      <div class="row">
+        <label style="margin:0">top_k</label>
+        <input type="number" id="topK" value="5" min="1" max="20">
+        <button id="sendBtn" onclick="runQuery()">Run</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+    <div id="citationsList" style="display:none; flex-direction:column; gap:6px;">
+      <div class="citations-header">Citations</div>
+      <div id="citationsInner"></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="answer-area" id="answerArea">
+      <div class="empty">Run a query to see the answer here.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <img id="modalImg" src="" alt="">
+    <div class="modal-desc" id="modalDesc"></div>
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";
+let citationMap = {};
+
+async function runQuery() {
+  const query = document.getElementById("queryInput").value.trim();
+  if (!query) return;
+  const topK = parseInt(document.getElementById("topK").value) || 5;
+  const btn = document.getElementById("sendBtn");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  status.className = "status";
+  status.textContent = "Fetching...";
+  document.getElementById("answerArea").innerHTML = '<div class="empty">Loading...</div>';
+  document.getElementById("citationsList").style.display = "none";
+  try {
+    const resp = await fetch(`${API_BASE}/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, top_k: topK }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    citationMap = {};
+    data.citations.forEach(c => { citationMap[c.marker] = c; });
+    renderAnswer(data.answer, data.citations);
+    renderCitations(data.citations);
+    status.className = "status ok";
+    status.textContent = `Done — ${data.citations.length} citations | ${data.language}`;
+  } catch (e) {
+    status.className = "status error";
+    status.textContent = `Error: ${e.message}`;
+    document.getElementById("answerArea").innerHTML = '<div class="empty">Request failed.</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function escAttr(s) {
+  return (s || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function processText(text) {
+  return text
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\d+\.\s+(.+)$/gm, (full, content) => {
+      const num = (full.match(/^(\d+)/)||[])[1];
+      return `<div class="step-block"><span class="step-num">${num}</span><div class="step-body"><div class="step-text">${content}</div></div></div>`;
+    });
+}
+
+function renderAnswer(answerText) {
+  const area = document.getElementById("answerArea");
+  const div = document.createElement("div");
+  div.className = "answer-content";
+  const markerRegex = /🖼️\[page\s+(\d+)\s*\|\s*entry\s+(\w+)\]/g;
+  const parts = [];
+  let lastIndex = 0, match;
+  while ((match = markerRegex.exec(answerText)) !== null) {
+    parts.push({ type: "text", content: answerText.slice(lastIndex, match.index) });
+    parts.push({ type: "marker", marker: `[page ${match[1]} | entry ${match[2]}]` });
+    lastIndex = match.index + match[0].length;
+  }
+  parts.push({ type: "text", content: answerText.slice(lastIndex) });
+
+  let html = "";
+  for (const part of parts) {
+    if (part.type === "text") {
+      html += processText(part.content);
+    } else {
+      const c = citationMap[part.marker];
+      if (c && c.image_url) {
+        const url = escAttr(`${API_BASE}${c.image_url}`);
+        const desc = escAttr(c.image_description);
+        const marker = escAttr(part.marker);
+        html += `<div class="step-image-wrap" onclick="openModal('${url}','${desc}','${marker}')"><img src="${url}" alt="${marker}" loading="lazy"></div>`;
+      }
+    }
+  }
+  div.innerHTML = html;
+  area.innerHTML = "";
+  area.appendChild(div);
+}
+
+function renderCitations(citations) {
+  const inner = document.getElementById("citationsInner");
+  inner.innerHTML = "";
+  citations.forEach((c) => {
+    const item = document.createElement("div");
+    item.className = "citation-item";
+    const imgUrl = c.image_url ? `${API_BASE}${c.image_url}` : null;
+    const thumb = imgUrl
+      ? `<img class="citation-thumb" src="${escAttr(imgUrl)}" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="citation-thumb-placeholder">🖼</div>`;
+    item.innerHTML = `${thumb}<div class="citation-meta"><div class="citation-marker">${escAttr(c.marker)}</div><div class="citation-desc">${escAttr(c.image_description)}</div></div>`;
+    if (imgUrl) item.onclick = () => openModal(imgUrl, c.image_description, c.marker);
+    inner.appendChild(item);
+  });
+  document.getElementById("citationsList").style.display = "flex";
+}
+
+function openModal(imageUrl, desc, marker) {
+  if (!imageUrl) return;
+  document.getElementById("modalImg").src = imageUrl;
+  document.getElementById("modalDesc").textContent = desc || "";
+  document.getElementById("modalOverlay").classList.add("open");
+}
+
+function closeModal(event) {
+  if (!event || event.target === document.getElementById("modalOverlay")) {
+    document.getElementById("modalOverlay").classList.remove("open");
+  }
+}
+
+document.getElementById("queryInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runQuery();
+});
+</script>
+</body>
+</html>

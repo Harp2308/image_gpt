@@ -4,11 +4,12 @@ from colep_ai.core.logger import get_logger
 from colep_ai.indexing.embedder import get_openai_client, embed_texts
 from colep_ai.indexing.page_chunker import chunk_all_pages_full
 from colep_ai.database.qdrant_page_client import get_qdrant_client, ensure_page_collection, upsert_page_chunks
-
+from colep_ai.core.config import settings
 logger = get_logger("page_indexing_pipeline")
 
 
 def run_page_indexing(source_file: str, openai_client=None) -> None:
+    logger.info(f"Qdrant URL: {settings.QDRANT_URL}")
     if openai_client is None:
         openai_client = get_openai_client()
 

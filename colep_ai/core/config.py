@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Anthropic
     # ------------------------------------------------------------------
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
-    ANTHROPIC_MODEL: str = "claude-haiku-4-5"
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 
     # ------------------------------------------------------------------
     # Google

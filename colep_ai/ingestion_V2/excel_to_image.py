@@ -59,7 +59,7 @@ def pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 200) -> list[str]:
     finally:
         doc.close()
 
-    logger.info(f"pdf_to_images:{pdf_path} -> { len(image_paths)} pages")
+    logger.info(f"pdf_to_images: {pdf_path} -> {len(image_paths)} pages")
     return image_paths
 
 
@@ -76,7 +76,8 @@ def normalize_sheet_pagination(wb, logger) -> dict:
 
         if pages_before > 1:
             logger.warning(
-                f"Sheet '{ ws.Name}' overflows ({pages_before} pages, zoom={ps.Zoom}) — forcing fit-to-page"               
+                f"Sheet '{ ws.Name}' overflows ({pages_before} pages, zoom={ps.Zoom}) — forcing fit-to-page"
+             
             )
             ps.Zoom = False
             ps.FitToPagesWide = 1

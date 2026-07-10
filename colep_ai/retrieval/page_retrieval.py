@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from dataclasses import dataclass
 
 from lingua import Language, LanguageDetectorBuilder
 from openai import OpenAI
@@ -34,6 +35,18 @@ _LANG_CONFIDENCE_THRESHOLD = 0.65
 
 _QDRANT_TIMEOUT_SECONDS = 5
 _EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="qdrant-search")
+
+
+@dataclass(frozen=True)
+class RetrievalResponse:
+    """
+    Wraps fused retrieval results with the detected query language so
+    downstream context-formatting and answer-generation stay consistent
+    with the language used for vector search - avoids re-detecting
+    language a second time and risking disagreement between the two.
+    """
+    results: list[dict]
+    language: str  # 'portuguese' | 'english' | 'other'
 
 
 def detect_language(query: str) -> str:
@@ -194,9 +207,17 @@ def retrieve(
     top_k: int = 5,
     primary_weight: float = 0.7,
     image_weight: float = 0.3,
-) -> list[dict]:
+) -> RetrievalResponse:
     """
-    Returns list of dicts:
+    Returns a RetrievalResponse(results, language).
+
+    BREAKING CHANGE: previously returned list[dict] directly. Now returns
+    RetrievalResponse so callers can access the detected language without
+    re-running detection (needed for consistent context-formatting /
+    answer-language selection downstream). Existing call sites need to
+    switch from `retrieve(...)` to `retrieve(...).results`.
+
+    results is a list of dicts:
         {
             "payload": {...},
             "score": float,
@@ -224,4 +245,4 @@ def retrieve(
     fused = _fuse_results(primary_results, image_results, primary_weight, image_weight, top_k)
 
     logger.info(f"Returning {len(fused)} fused results")
-    return fused
+    return RetrievalResponse(results=fused, language=language)

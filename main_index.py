@@ -28,5 +28,5 @@ def main(dir_path:str):
 
 
 if __name__ == "__main__":
-    d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e3\results"
+    d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
     main(d)
