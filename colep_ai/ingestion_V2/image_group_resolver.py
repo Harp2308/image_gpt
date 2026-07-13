@@ -43,9 +43,16 @@ import re
 
 def parse_llm_json(raw: str) -> list | dict:
     raw = raw.strip()
-    # strip trailing commas before ] or }
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw)
     cleaned = re.sub(r',(\s*[\]}])', r'\1', raw)
-    return json.loads(cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Fix unescaped double-quotes inside JSON string values
+        # Targets any " not already escaped and not a structural quote
+        fixed = re.sub(r'(?<!\\)"(?![,\]\}\s]|:\s)(?<![{\[,:\s\n])', r'\\"', cleaned)
+        return json.loads(fixed)
 
 def encode_image(path: str) -> tuple[str, str]:
     """Return (base64_data, media_type) for an image file."""
@@ -203,6 +210,9 @@ Write image_description as a structured paragraph covering ALL of the following:
 
 5. TEXT IN IMAGE (if any text is visible inside the image itself, not OCR)
    - Any labels, signs, screen readouts, or button text visible in the photo.
+   
+IMPORTANT: All string values in your tool call must use valid JSON escaping.
+Any double-quote character that appears inside a string value must be escaped as \".
 
 Tone: Technical, precise, objective. Do not infer beyond what is visually evident.
 Length: 60-100 words. Be thorough but concise.
@@ -251,7 +261,8 @@ def extract_steps(
                 result["entries"] = parse_llm_json(result["entries"])
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"entries came back as malformed JSON string, parse failed: {e} | raw[:300]: {result['entries'][:300]}")
-                result["entries"] = str(result.get("entries"))
+                result["entries"] = []
+                result["llm_answer"] = str(result.get("entries"))
           return result
 
     raise RuntimeError("Model did not return the expected tool call.")

@@ -9,7 +9,7 @@ re-trigger Excel COM or re-render pages already on disk.
 """
 import json
 from pathlib import Path
-
+import fitz
 import anthropic
 from google.cloud import vision
 
@@ -33,7 +33,7 @@ def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
     if pdf_path.exists():
         logger.info(f"Stage 1 skipped (cached) | pdf: {pdf_path}")
         return pdf_path
-    result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)))
+    result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
     logger.info(f"Stage 1 done | pdf: {result_path}")
 
     return Path(result_path)
@@ -44,11 +44,18 @@ def _ensure_page_image(pdf_path: Path, source_file: str, page_number: int) -> Pa
     if page_img.exists():
         return page_img
     # renders ALL pages once; cheap relative to Excel export, cached after first call
-    pdf_to_images(str(pdf_path), str(settings.page_images_dir(source_file)))
+    pdf_to_images(str(pdf_path), str(settings.page_images_dir(source_file)), source_file)
     if not page_img.exists():
         raise RuntimeError(f"Expected page image not found after render: {page_img}")
     return page_img
 
+def get_total_pages(excel_path: str) -> int:
+    excel_path = Path(excel_path)
+    source_file = normalize_filename(excel_path.stem)   # <-- fix: was raw .stem, now matches run_pipeline
+    settings.ensure_doc_dirs(source_file)
+    pdf_path = _ensure_pdf(excel_path, source_file)
+    with fitz.open(pdf_path) as doc:
+        return doc.page_count
 
 def run_pipeline(
     excel_path: str,
@@ -84,9 +91,9 @@ def run_pipeline(
         output_dir=str(page_crops_dir),
         group_resolver=group_resolver,
     )
-    print("*"*50)
-    print(crops_metadata)
-    print("*"*50)
+    # print("*"*50)
+    # print(crops_metadata)
+    # print("*"*50)
 
     marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
     logger.info(f"Stage 4 done | crops: {len(crops_metadata)}, marked: {marked_image_path}")
@@ -138,18 +145,5 @@ def run_pipeline(
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     logger.info(f"Stage 6 done | steps: {len(recon_status)}, failed: {len(failed_steps)}")
-
-    
-
     return "result"
 
-
-import fitz
-
-def get_total_pages(excel_path: str) -> int:
-    excel_path = Path(excel_path)
-    source_file = excel_path.stem
-    settings.ensure_doc_dirs(source_file)
-    pdf_path = _ensure_pdf(excel_path, source_file)
-    with fitz.open(pdf_path) as doc:
-        return doc.page_count

@@ -32,5 +32,18 @@ def main(excel_path:str):
             logger.error(f"Page{ page} failed: {e}", exc_info=True)
             continue
 
-if __name__ == "__main__":
-    main(r"docs\e1.xlsx")
+if __name__ == "__main__":    
+    # main(r"docs\e1.xlsx")
+    from pathlib import Path
+
+    DOCS_DIR = Path("docs")
+    excel_files = list(DOCS_DIR.glob("*.xlsx"))
+
+    for excel_file in excel_files[:3]:
+        try:
+            print(f"Processing: {excel_file.name}")
+            main(str(excel_file))
+        except Exception as e:
+            print(f"❌ Failed: {excel_file.name}")
+            print(e)
+    # main(r"docs\O01.T025.3 - Parâmetros do forno e PU - Linha 63 Estampagem 1.xlsx")

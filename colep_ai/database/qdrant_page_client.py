@@ -9,6 +9,8 @@ from colep_ai.indexing.embedder import EMBED_DIM
 logger = get_logger(__name__)
 
 PAGE_COLLECTION_NAME = "colep_page_based_chunks"
+# PAGE_COLLECTION_NAME = "colep_page_based_chunks_p"
+
 UPSERT_BATCH_SIZE = 50
 
 
