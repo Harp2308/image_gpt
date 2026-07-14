@@ -163,6 +163,17 @@ def generate_answer(
     ],
     temperature=0,
 )
+
+    usage = resp.usage
+    input_tokens = usage.input_tokens
+    output_tokens = usage.output_tokens
+    
+    logger.info(
+        f"Token usage | prompt_tokens={input_tokens} |"
+        f"output_tokens={output_tokens} |"
+        f"total_tokens={input_tokens + output_tokens}|"
+    )
+
     return resp.content[0].text
 
 
@@ -267,6 +278,3 @@ def generate_from_retrieval(
         "language": retrieval_response.language,
         "results": retrieval_response.results,
     }
-
-
-
