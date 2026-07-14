@@ -46,6 +46,21 @@ def ensure_page_collection(client: QdrantClient) -> None:
         logger.info(f"Collection already exists:{ PAGE_COLLECTION_NAME}")
 
 
+def create_indexes(client: QdrantClient):
+    fields = [
+        ("page_number", models.PayloadSchemaType.INTEGER),
+        ("document_code", models.PayloadSchemaType.KEYWORD),
+        ("document_title", models.PayloadSchemaType.TEXT),
+        ("source_file", models.PayloadSchemaType.KEYWORD),
+    ]
+    for field_name, schema in fields:
+        client.create_payload_index(
+            collection_name=PAGE_COLLECTION_NAME,
+            field_name=field_name,
+            field_schema=schema,
+        )
+
+
 def upsert_page_chunks(
     client: QdrantClient,
     chunks: list[dict],

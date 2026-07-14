@@ -19,18 +19,20 @@ class Settings(BaseSettings):
     # Anthropic
     # ------------------------------------------------------------------
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
+    ANTHROPIC_ENDPOINT: SecretStr = SecretStr("")
     ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 
     # ------------------------------------------------------------------
     # Google
     # ------------------------------------------------------------------
     GOOGLE_APPLICATION_CREDENTIALS: Path = Path("key.json")
-
+    
     # ------------------------------------------------------------------
     # OpenAI
     # ------------------------------------------------------------------
     OPENAI_API_KEY: SecretStr = SecretStr("")
-
+    OPENAI_ENDPOINT: SecretStr = SecretStr("")
+     
     # ------------------------------------------------------------------
     # Qdrant
     # ------------------------------------------------------------------

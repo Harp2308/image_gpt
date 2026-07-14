@@ -12,6 +12,8 @@ from pathlib import Path
 import fitz
 import anthropic
 from google.cloud import vision
+import re
+import time
 
 from colep_ai.core.config import settings
 from colep_ai.ingestion_V2.excel_to_image import excel_to_pdf, pdf_to_images
@@ -20,8 +22,7 @@ from colep_ai.ingestion_V2.pdf_to_images import extract_images_from_page
 from colep_ai.ingestion_V2.xlsx_group_resolver import XlsxGroupResolver
 from colep_ai.ingestion_V2.image_group_resolver import extract_steps
 from colep_ai.ingestion_V2.image_combiner import reconstruct_all_steps,group_image_ids_by_entry
-from colep_ai.ingestion_V2.utils import normalize_filename
-
+from colep_ai.ingestion_V2.utils import normalize_filename,_log_stage
 from colep_ai.core.logger import get_logger
 
 logger = get_logger("Ingestion_pipeline")
@@ -57,12 +58,20 @@ def get_total_pages(excel_path: str) -> int:
     with fitz.open(pdf_path) as doc:
         return doc.page_count
 
+
+def extract_line_number(stem: str) -> int | None:
+    match = re.search(r'(?:Linha_|L_|L)(\d+)', stem, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
 def run_pipeline(
     excel_path: str,
     page_number: int,  # 1-based, interface contract
     vision_client: vision.ImageAnnotatorClient,
     claude_client: anthropic.Anthropic,
 ) -> dict:
+    pipeline_start = time.monotonic()
+    t = time.monotonic()
     excel_path = Path(excel_path)
     source_file = normalize_filename(excel_path.stem)
     page_idx = page_number - 1  # 0-based, internal only past this point
@@ -71,15 +80,17 @@ def run_pipeline(
 
     # Stage 1: Excel -> PDF (cached, once per doc)
     pdf_path = _ensure_pdf(excel_path, source_file)
+    _log_stage("1 excel_to_pdf", t); t = time.monotonic()
 
     # Stage 2: PDF -> page PNG (cached, once per doc, all pages rendered together)
     page_img = _ensure_page_image(pdf_path, source_file, page_number)
+    _log_stage("2 page_image", t); t = time.monotonic()
 
-    # Stage 3: OCR on target page
-    ocr_json_path = image_to_vision_json(str(page_img), str(settings.ocr_dir(source_file)), vision_client)
-    with open(ocr_json_path, encoding="utf-8") as f:
-        ocr_data = json.load(f)
-    logger.info(f"Stage 3 done | blocks: {len(ocr_data['blocks'])}")
+    # # Stage 3: OCR on target page
+    # ocr_json_path = image_to_vision_json(str(page_img), str(settings.ocr_dir(source_file)), vision_client)
+    # with open(ocr_json_path, encoding="utf-8") as f:
+    #     ocr_data = json.load(f)
+    # logger.info(f"Stage 3 done | blocks: {len(ocr_data['blocks'])}")
 
     # Stage 4: CV crops with xlsx-group-aware union merge
     page_crops_dir = settings.crops_dir(source_file) / f"page_{page_number}"
@@ -91,12 +102,10 @@ def run_pipeline(
         output_dir=str(page_crops_dir),
         group_resolver=group_resolver,
     )
-    # print("*"*50)
-    # print(crops_metadata)
-    # print("*"*50)
 
     marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
     logger.info(f"Stage 4 done | crops: {len(crops_metadata)}, marked: {marked_image_path}")
+    _log_stage("4 cv_crops", t); t = time.monotonic()
 
 
     # Stage 5: Claude association -> structured JSON
@@ -106,14 +115,19 @@ def run_pipeline(
         logger.warning(f"No images extracted on page { page_number }— skipping Claude association")
         result = {"results": [], "warning": "no_images_extracted"}
     else:
-        result=extract_steps(full_page_image_path=str(marked_image_path),image_meta=crops_metadata)
+        result=extract_steps(full_page_image_path=str(marked_image_path),image_meta=crops_metadata,client=claude_client)
         result["page_number"] = page_number
         result["source_file"] = source_file
+        result["line_number"] = extract_line_number(source_file)
+        
+        logger.info(f"line_number={result['line_number']} | source_file={source_file}")
+
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved: {out_path}")
 
         logger.info(f"Stage 5 done | entries: {len(result.get('entries', []))}")
+        _log_stage("5 claude_extraction", t); t = time.monotonic()
 
 
     # Stage 6: reconstruct grouped step images
@@ -145,5 +159,8 @@ def run_pipeline(
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     logger.info(f"Stage 6 done | steps: {len(recon_status)}, failed: {len(failed_steps)}")
+    _log_stage("6 image_reconstruction", t); t = time.monotonic()
+
+    logger.info(f"Pipeline complete | total={time.monotonic() - pipeline_start:.2f}s | source_file={source_file} | page={page_number}")
     return "result"
 

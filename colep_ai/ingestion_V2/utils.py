@@ -1,6 +1,9 @@
 import re
 import unicodedata
+import time
+from colep_ai.core.logger import get_logger
 
+logger = get_logger("Ingestion_pipeline")
 
 def normalize_filename(name: str) -> str:
     """
@@ -22,3 +25,7 @@ def normalize_filename(name: str) -> str:
 
 
 # print(normalize_filename("O01.O119.1 - Localização dos pontos de lubrificação e processo de limpeza L13.xlsx"))
+
+
+def _log_stage(stage: str, start: float) -> None:
+    logger.info(f"Stage {stage} | elapsed={time.monotonic() - start:.2f}s")

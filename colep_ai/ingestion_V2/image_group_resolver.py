@@ -224,9 +224,10 @@ Call the `record_step_image_mapping` tool with your final structured answer.
 def extract_steps(
     full_page_image_path: str,
     image_meta: list[dict],
+    client:anthropic.Anthropic,
     api_key: str | None = None,
 ) -> dict:
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value())
+   
 
     full_b64, full_media_type = encode_image(full_page_image_path)
 

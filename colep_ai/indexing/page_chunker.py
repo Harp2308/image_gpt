@@ -15,6 +15,7 @@ def _page_point_id(document_code: str, document_title: str, source_file: str, pa
 
 def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict | None:
     entries = data.get("entries", [])
+    legend = data.get("legend", [])
 
     text_pt_parts = []
     text_en_parts = []
@@ -53,7 +54,9 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             "page_number": page_number,
             "document_title": document_title,
             "document_code": document_code,
+            "line_number": data.get("line_number",""),
             "entries": entries,
+            "legend" : legend
         },
     }
 

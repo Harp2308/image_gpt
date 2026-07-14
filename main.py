@@ -9,14 +9,14 @@ import anthropic
 from colep_ai.core.config import settings
 from colep_ai.ingestion_V2.ocr_extractor import get_vision_client
 from colep_ai.ingestion_V2.pipeline import run_pipeline,get_total_pages
-
+from colep_ai.generation.claude_client import get_claude_client
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def main(excel_path:str):
     vision_client = get_vision_client(str(settings.GOOGLE_APPLICATION_CREDENTIALS))
-    claude_client = anthropic.Anthropic()
+    claude_client = get_claude_client()
     total_pages = get_total_pages(excel_path)
 
     for page in range(1, total_pages + 1):
@@ -36,10 +36,10 @@ if __name__ == "__main__":
     # main(r"docs\e1.xlsx")
     from pathlib import Path
 
-    DOCS_DIR = Path("docs")
+    DOCS_DIR = Path(r"docs\Docs type")
     excel_files = list(DOCS_DIR.glob("*.xlsx"))
 
-    for excel_file in excel_files[:3]:
+    for excel_file in excel_files[:1]:
         try:
             print(f"Processing: {excel_file.name}")
             main(str(excel_file))
