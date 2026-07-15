@@ -7,7 +7,6 @@ import fitz
 import numpy as np
 
 from colep_ai.ingestion_V2.xlsx_group_resolver import XlsxGroupResolver
-
 from colep_ai.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -83,7 +82,29 @@ def _is_noise(box: tuple, canvas_w: int, canvas_h: int) -> bool:
         return True
 
     return False
+def _is_brand_logo(
+    box: tuple,
+    canvas_w: int,
+    canvas_h: int,
+) -> bool:
+    """
+    Skip the Colep branding/logo image that appears in the page header.
+    """
 
+    x0, y0, x1, y1 = box
+    w = x1 - x0
+    h = y1 - y0
+
+    if y1 > canvas_h * 0.20:
+        return False
+
+    if 150 <= w <= 320 and 50 <= h <= 110:
+        logger.info(
+            f"Skipping header logo ({w}x{h}) at ({x0}, {y0}, {x1}, {y1})"
+        )
+        return True
+
+    return False
 
 def _find_label_position(
     box: tuple,
@@ -230,7 +251,18 @@ def extract_images_from_page(
             continue
 
         name = f"{page_label}_{uuid.uuid4().hex[:4]}"
+
+        if _is_brand_logo((x0, y0, x1, y1), canvas_w, canvas_h):
+            continue
+
         crop = img[y0:y1, x0:x1]
+        if y1 < img.shape[0] * 0.15:
+            h, w = crop.shape[:2]
+            print(
+                f"HEADER: bbox={(x0,y0,x1,y1)} "
+                f"size={w}x{h} "
+                f"aspect={w/h:.2f}"
+            )
 
         crop_path = crops_dir / f"{name}.png"
         if not cv2.imwrite(str(crop_path), crop):

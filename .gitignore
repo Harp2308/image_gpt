@@ -16,18 +16,14 @@ outputsv1
 *.png
 
 data
-ingestion
 scripts
 storage
 ops
 .env
 key.json
-output
 docs
 
-ops2
-outputs_new1
-outputs_old
+outputs*
 prompts
 
 logs

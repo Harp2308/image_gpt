@@ -1,71 +1,20 @@
 """
-Excel -> PDF via win32com (requires a live Excel install, Windows only).
-Call excel_to_pdf ONCE per document — spinning up Excel.Application per
-page is not viable (COM startup cost, single-threaded, file locking).
+Excel -> PDF via win32com.
+IRM sensitivity-label tags are stripped from a temp copy before Excel opens it,
+eliminating the AAD sign-in dialog entirely.
 """
 
 from pathlib import Path
+import tempfile
 import fitz
 import win32com.client
 
 from colep_ai.core.logger import get_logger
+from colep_ai.ingestion_V2.irm_strip import strip_irm
 
 logger = get_logger(__name__)
 
-# Excel COM page-break type constants (avoids depending on the generated
-# win32com.client.constants cache, which may not be built on every machine).
 XL_PAGE_BREAK_MANUAL = -4135
-
-
-def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
-    excel_path = str(Path(excel_path).resolve())
-    pdf_dir_p = Path(pdf_dir).resolve()
-    pdf_dir_p.mkdir(parents=True, exist_ok=True)
-    pdf_path = str(pdf_dir_p / f"{source_file}.pdf")   # <-- normalized name, not raw stem
- 
-
-    excel = win32com.client.Dispatch("Excel.Application")
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    try:
-        wb = excel.Workbooks.Open(excel_path)
-        report = normalize_sheet_pagination(wb, logger)
-        logger.info(f"pagination normalization report for {source_file}: {report}")
-        try:
-            wb.ExportAsFixedFormat(0, pdf_path)  # 0 = xlTypePDF
-            
-        finally:
-            wb.Close(False)
-    finally:
-        excel.Quit()
-
-    if not Path(pdf_path).exists():
-        raise RuntimeError(f"Excel export failed, no PDF at {pdf_path}")
-
-    logger.info(f"excel_to_pdf:{excel_path} ->{pdf_path}")
-    return pdf_path
-
-
-def pdf_to_images(pdf_path: str, output_dir: str, source_file: str,dpi: int = 200) -> list[str]:
-    output_dir_p = Path(output_dir)
-    output_dir_p.mkdir(parents=True, exist_ok=True)
-
-    doc = fitz.open(pdf_path)
-    zoom = dpi / 72
-    matrix = fitz.Matrix(zoom, zoom)
-
-    image_paths = []
-    try:
-        for i, page in enumerate(doc, start=1):
-            pix = page.get_pixmap(matrix=matrix)
-            img_path = output_dir_p / f"{source_file}_page_{i}.png"   # <-- normalized name
-            pix.save(str(img_path))
-            image_paths.append(str(img_path))
-    finally:
-        doc.close()
-
-    logger.info(f"pdf_to_images: {pdf_path} -> {len(image_paths)} pages")
-    return image_paths
 
 
 def _has_manual_page_breaks(ws) -> bool:
@@ -154,3 +103,74 @@ def normalize_sheet_pagination(wb, logger) -> dict:
             }
 
     return report
+
+
+def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
+    pdf_dir_p = Path(pdf_dir).resolve()
+    pdf_dir_p.mkdir(parents=True, exist_ok=True)
+    pdf_path = str(pdf_dir_p / f"{source_file}.pdf")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Strip IRM into a temp copy named after source_file — original never touched
+        stripped_path = strip_irm(excel_path, str(Path(tmp_dir) / f"{source_file}.xlsx"))
+        stripped_path = str(Path(stripped_path).resolve())
+
+        excel = win32com.client.DispatchEx("Excel.Application")
+        # Set ALL visibility/alert flags BEFORE opening any workbook
+        excel.Visible = False
+        excel.DisplayAlerts = False
+        excel.ScreenUpdating = False   # prevents any UI redraws
+        excel.EnableEvents = False     # suppresses event-driven dialogs
+
+        try:
+            wb = excel.Workbooks.Open(
+                stripped_path,
+                UpdateLinks=False,   # don't prompt to update external links
+                ReadOnly=True,       # read-only avoids shared-workbook Group mode
+                IgnoreReadOnlyRecommended=True,
+            )
+
+            # Force out of shared/group mode if still set — this is what causes
+            # the "Group" title bar and forces a visible window
+            try:
+                if wb.MultiUserEditing:
+                    wb.ExclusiveAccess()
+            except Exception:
+                pass  # not all workbooks support this; safe to ignore
+
+            report = normalize_sheet_pagination(wb, logger)
+            logger.info(f"pagination normalization report for {source_file}: {report}")
+            try:
+                wb.ExportAsFixedFormat(0, pdf_path)
+            finally:
+                wb.Close(False)
+        finally:
+            excel.Quit()
+
+    if not Path(pdf_path).exists():
+        raise RuntimeError(f"Excel export failed, no PDF at {pdf_path}")
+
+    logger.info(f"excel_to_pdf: {excel_path} -> {pdf_path}")
+    return pdf_path
+
+
+def pdf_to_images(pdf_path: str, output_dir: str, source_file: str, dpi: int = 200) -> list[str]:
+    output_dir_p = Path(output_dir)
+    output_dir_p.mkdir(parents=True, exist_ok=True)
+
+    doc = fitz.open(pdf_path)
+    zoom = dpi / 72
+    matrix = fitz.Matrix(zoom, zoom)
+
+    image_paths = []
+    try:
+        for i, page in enumerate(doc, start=1):
+            pix = page.get_pixmap(matrix=matrix)
+            img_path = output_dir_p / f"{source_file}_page_{i}.png"
+            pix.save(str(img_path))
+            image_paths.append(str(img_path))
+    finally:
+        doc.close()
+
+    logger.info(f"pdf_to_images: {pdf_path} -> {len(image_paths)} pages")
+    return image_paths

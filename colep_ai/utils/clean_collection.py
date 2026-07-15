@@ -9,7 +9,8 @@ client = QdrantClient(
     api_key=os.getenv("QDRANT_API_KEY"),
 )
 
-COLLECTION_NAME = "colep_page_based_chunks"  # change as needed
+# COLLECTION_NAME = "colep_page_based_chunks"  # change as needed
+COLLECTION_NAME = "colep_page_based_chunks_line"  # change as needed
 
 def delete_collection(name: str):
     existing = [c.name for c in client.get_collections().collections]

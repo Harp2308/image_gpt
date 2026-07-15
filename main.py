@@ -41,9 +41,9 @@ if __name__ == "__main__":
 
     for excel_file in excel_files[:1]:
         try:
-            print(f"Processing: {excel_file.name}")
+            logger.info(f"Processing: {excel_file.name}")
             main(str(excel_file))
         except Exception as e:
-            print(f"❌ Failed: {excel_file.name}")
-            print(e)
+            logger.warning(f"❌ Failed: {excel_file.name}")
+            logger.error(e)
     # main(r"docs\O01.T025.3 - Parâmetros do forno e PU - Linha 63 Estampagem 1.xlsx")

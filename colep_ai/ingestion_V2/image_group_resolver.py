@@ -253,6 +253,15 @@ def extract_steps(
         tool_choice={"type": "tool", "name": "record_step_image_mapping"},
         messages=[{"role": "user", "content": content}],
     )
+    usage = response.usage
+    input_tokens = usage.input_tokens
+    output_tokens = usage.output_tokens
+    
+    logger.info(
+        f"Token usage | prompt_tokens={input_tokens} |"
+        f"output_tokens={output_tokens} |"
+        f"total_tokens={input_tokens + output_tokens}|"
+    )
 
     for block in response.content:
       if block.type == "tool_use" and block.name == "record_step_image_mapping":
