@@ -51,6 +51,40 @@ def _rects_overlap(a: tuple, b: tuple) -> bool:
     return not (ax1 <= bx0 or bx1 <= ax0 or ay1 <= by0 or by1 <= ay0)
 
 
+def _is_column_grouped(box: tuple, all_boxes: list[tuple], x_tol: int = 20, min_count: int = 3) -> bool:
+    """
+    Returns True if 3+ boxes (including this one) share nearly the same x0,
+    indicating a vertical column layout where top/bottom labels would bleed
+    into adjacent rows.
+    """
+    x0 = box[0]
+    matches = sum(1 for b in all_boxes if abs(b[0] - x0) <= x_tol)
+    return matches >= min_count
+
+
+def _is_noise(box: tuple, canvas_w: int, canvas_h: int) -> bool:
+    """
+    Filter out non-content image regions:
+      1. Branding: small area AND lives in top 8% of page (logo/header)
+      2. Narrow strip: width/height < 0.3 — icon columns (action symbols etc.)
+    """
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    if h == 0:
+        return True
+
+    # narrow vertical strip (icon/action column)
+    if (w / h) < 0.3:
+        return True
+
+    # small image in page header
+    area_ratio = (w * h) / (canvas_w * canvas_h)
+    if area_ratio < 0.01 and y1 < (canvas_h * 0.08):
+        return True
+
+    return False
+
+
 def _find_label_position(
     box: tuple,
     label_w: int,
@@ -59,20 +93,29 @@ def _find_label_position(
     canvas_w: int,
     canvas_h: int,
     margin: int = 5,
+    force_sides: bool = False,
 ) -> tuple:
     """
     box: (x0, y0, x1, y1) of the crop.
     occupied: all previously placed boxes + labels, to avoid collision.
     Tries: above -> below -> left -> right (clamped to canvas).
+    force_sides: if True, skips above/below — used for column-grouped images
+    to prevent labels bleeding into adjacent rows.
     """
     x0, y0, x1, y1 = box
 
-    candidates = [
-        (x0, y0 - label_h - margin, x0 + label_w, y0 - margin),          # above
-        (x0, y1 + margin, x0 + label_w, y1 + label_h + margin),          # below
-        (x0 - label_w - margin, y0, x0 - margin, y0 + label_h),          # left
-        (x1 + margin, y0, x1 + label_w + margin, y0 + label_h),          # right
-    ]
+    if force_sides:
+        candidates = [
+            (x0 - label_w - margin, y0, x0 - margin, y0 + label_h),          # left
+            (x1 + margin, y0, x1 + label_w + margin, y0 + label_h),          # right
+        ]
+    else:
+        candidates = [
+            (x0, y0 - label_h - margin, x0 + label_w, y0 - margin),          # above
+            (x0, y1 + margin, x0 + label_w, y1 + label_h + margin),          # below
+            (x0 - label_w - margin, y0, x0 - margin, y0 + label_h),          # left
+            (x1 + margin, y0, x1 + label_w + margin, y0 + label_h),          # right
+        ]
 
     for cx0, cy0, cx1, cy1 in candidates:
         if cx0 < 0 or cy0 < 0 or cx1 > canvas_w or cy1 > canvas_h:
@@ -168,6 +211,16 @@ def extract_images_from_page(
 
     final_regions.sort(key=lambda r: (r[1], r[0]))
 
+    canvas_h, canvas_w = img.shape[:2]
+    before = len(final_regions)
+    final_regions = [
+        r for r in final_regions
+        if not _is_noise(r, canvas_w, canvas_h)
+    ]
+    filtered = before - len(final_regions)
+    if filtered:
+        logger.info(f"{page_label}: filtered {filtered} noise region(s) (branding/icon strips)")
+
     occupied_rects: list[tuple] = []
     saved = []
 
@@ -190,9 +243,11 @@ def extract_images_from_page(
         label_w = text_w + 2 * padding
         label_h = text_h + baseline + 2 * padding
 
+        force_sides = _is_column_grouped((x0, y0, x1, y1), final_regions)
         lx0, ly0, lx1, ly1 = _find_label_position(
             (x0, y0, x1, y1), label_w, label_h, occupied_rects,
-            visual.shape[1], visual.shape[0]
+            visual.shape[1], visual.shape[0],
+            force_sides=force_sides,
         )
 
         cv2.rectangle(visual, (lx0, ly0), (lx1, ly1), (255, 255, 255), -1)
