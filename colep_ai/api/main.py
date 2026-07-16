@@ -9,7 +9,7 @@ from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
 from colep_ai.database.qdrant_page_client import get_qdrant_client
 from colep_ai.api.routes.chat import router as chat_router
-
+from fastapi.responses import FileResponse
 logger = get_logger(__name__)
 
 app = FastAPI(title="Colep AI")
@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
-
+app.mount("/static", StaticFiles(directory="colep_ai/frontend"), name="static")
 
 @app.on_event("startup")
 def _init_clients():
@@ -35,3 +35,9 @@ def _init_clients():
 # Register routers
 app.include_router(chat_router)
 # app.include_router(ingestion_router)  # next router goes here
+
+
+
+@app.get("/")
+async def serve_ui():
+    return FileResponse("colep_ai/frontend/colep_ui.html")

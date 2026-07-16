@@ -39,7 +39,7 @@ if __name__ == "__main__":
     DOCS_DIR = Path(r"docs\Docs type")
     excel_files = list(DOCS_DIR.glob("*.xlsx"))
 
-    for excel_file in excel_files[:1]:
+    for excel_file in excel_files:
         try:
             logger.info(f"Processing: {excel_file.name}")
             main(str(excel_file))

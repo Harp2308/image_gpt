@@ -17,16 +17,29 @@ openai_client = get_openai_client()
 
 def main(dir_path:str):
     start_time=datetime.now()
-    logger.info(f"process started at={start_time.strftime('%Y-%m-%dT%H:%M:%S')} ")
+    logger.info(f"process started for one folder at={start_time.strftime('%Y-%m-%dT%H:%M:%S')} ")
 
     # run_indexing(dir_path,openai_client)
     run_page_indexing(dir_path,openai_client)
 
     end_time = datetime.now()
     duration = end_time - start_time
+    logger.info(f"process ended for one folder at={end_time.strftime('%Y-%m-%dT%H:%M:%S')} duration={str(duration)}")
+
+import os
+if __name__ == "__main__":
+    # d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
+    # main(d)
+    root_dir=r"outputs_16_7"
+    start_time=datetime.now()
+    logger.info(f"process started for ops at={start_time.strftime('%Y-%m-%dT%H:%M:%S')} ")
+
+    for subdir, dirs, files in os.walk(root_dir):
+        if os.path.basename(subdir) == "results":
+            print(subdir)
+            main(subdir)
+
+    end_time = datetime.now()
+    duration = end_time - start_time
     logger.info(f"process ended at={end_time.strftime('%Y-%m-%dT%H:%M:%S')} duration={str(duration)}")
 
-
-if __name__ == "__main__":
-    d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
-    main(d)

@@ -41,39 +41,27 @@ _RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
 _IMAGE_MARKER_PATTERN = re.compile(r"🖼️\[page\s+(\d+)\s*\|\s*entry\s+(\d+)\]")
 EntryLookup = dict[tuple[int, int], dict]
 
-def format_context_for_llm(results: list[dict], language: str) -> str:
-    """
-    Formats fused retrieval results into an LLM-ready context string,and
-    returns an (page_number, entry_number) -> entry lookup so any image
-    markers the LLM emits can later be resolved to real image data.
-
-    Per entry:
-      [page {page_number} | entry {n}]
-      document_title: ...
-      document_code: ...        (omitted if empty)
-      text: <entry_text_en unless language == 'portuguese', else entry_text>
-      image_description: ...    (omitted if absent)
-      has_image: yes/no         (tells the LLM whether a marker is valid here)
-
-    Text-field selection rule: Portuguese queries get the original
-    entry_text (native language, most faithful); everything else
-    (english / other) gets entry_text_en, since the answer is only ever
-    produced in English or Portuguese and English is the fallback.
-    """
+# v2
+def format_context_for_llm(results: list[dict], language: str) -> tuple[str, EntryLookup]:
     use_native_pt_text = language == "portuguese"
     blocks: list[str] = []
     entry_lookup: EntryLookup = {}
-
 
     for result in results:
         payload = result.get("payload", {})
         page_number = payload.get("page_number")
         entries = payload.get("entries", [])
 
+        # Legend is page-level — emit once before entries if present
+        legend = payload.get("legend", [])
+        legend_block = ""
+        if legend:
+            legend_lines = [f"  {item['symbol']}: {item['meaning']}" for item in legend if item.get("symbol") and item.get("meaning")]
+            if legend_lines:
+                legend_block = "legend:\n" + "\n".join(legend_lines)
+
         for idx, entry in enumerate(entries, start=1):
             text = entry.get("entry_text") if use_native_pt_text else entry.get("entry_text_en")
-            # Fallback if the preferred field is empty for this entry
-            # (e.g. entries that are table-only rows with no free text).
             if not text:
                 text = entry.get("entry_text_en") or entry.get("entry_text") or ""
             has_image = bool(entry.get("image_ids") or entry.get("combined_image"))
@@ -84,43 +72,62 @@ def format_context_for_llm(results: list[dict], language: str) -> str:
                 lines.append(f"document_title: {payload['document_title']}")
             if payload.get("document_code"):
                 lines.append(f"document_code: {payload['document_code']}")
+
+            # Inject legend once, only on the first entry of this page
+            if legend_block and idx == 1:
+                lines.append(legend_block)
+
             if text:
                 lines.append(f"text: {text}")
+
+            # Fields: flatten key-value, skip empty values
+            fields = entry.get("fields", {})
+            if fields:
+                field_lines = [
+                    f"  {k}: {v}" for k, v in fields.items() if v and str(v).strip()
+                ]
+                if field_lines:
+                    lines.append("fields:\n" + "\n".join(field_lines))
+
             if entry.get("image_description"):
                 lines.append(f"image_description: {entry['image_description']}")
-                lines.append(f"has_image: {'yes' if has_image else 'no'}")
+            lines.append(f"has_image: {'yes' if has_image else 'no'}")
 
             blocks.append("\n".join(lines))
             entry_lookup[(page_number, idx)] = entry
 
     return "\n\n".join(blocks), entry_lookup
 
-
-_ANSWER_SYSTEM_PROMPT = """You are a technical assistant answering questions about industrial \
-machinery based strictly on the provided context.
+# v2
+_ANSWER_SYSTEM_PROMPT = """You are a technical assistant for industrial factory operators. \
+Answer questions about machinery procedures based strictly on the provided context blocks.
 
 Rules:
-- Respond in {answer_language} only, regardless of the language used in the context blocks.
-- Base your answer only on the provided context. If the context does not contain enough \
-information to answer, say so explicitly rather than guessing.
-- Structure the answer as: a one-line main task summary, then the steps needed to \
-accomplish it (as a numbered or naturally flowing list, whichever reads better).
-- Immediately after any step that has a corresponding image in the context \
-(has_image: yes), insert an inline marker in EXACTLY this format, with no \
-extra spaces or punctuation changes:
-  🖼️[page {{page_number}} | entry {{entry_number}}]
-  Use the exact page and entry numbers shown in that context block's \
-  "[page X | entry Y]" header.
-- Only insert a marker for an entry whose context block says "has_image: yes". \
-Never invent a marker for an entry that says "has_image: no", and never invent \
-page/entry numbers that are not present in the context.
-- Do not add more than one marker per step, and only add a marker when the \
-referenced image is genuinely what illustrates that step.
-Example of the expected output shape:
-"To turn on the furnace conveyor: Locate the control panel 🖼️[page 3 | entry 9] \
-and press the green \"Arranque\" button to start the conveyor. Next, turn on the \
-furnace burners 🖼️[page 3 | entry 10] by rotating both knobs to the \"Ligado\" \
-position." """
+- Respond in {answer_language} only.
+- Ground every claim in the context. If the context is insufficient, say so explicitly.
+- Do NOT copy entry text verbatim. Synthesize it into clear, operator-facing instructions. \
+  Use active voice and imperative form ("Press the red button", not "The operator should press").
+- When a context block contains a "fields" section, incorporate the relevant details naturally:
+  - "Resp." → mention who performs the step (e.g. "This step is performed by the Mechanic")
+  - "Material" → mention required tools/materials inline (e.g. "using clean cloths and alcohol")
+  - "Tempo" → mention estimated time if it helps the operator plan (e.g. "allow ~5 minutes")
+  - "Ação" / "Modo" → mention if the machine must be stopped ("machine must be stopped first")
+  - Omit fields that add no practical value for the specific question asked.
+- When a context block contains a "legend" section, use it to interpret any symbols mentioned \
+  in the entries (e.g. eye_icon = Inspeção, wrench_icon = Intervenção).
+- Structure the answer as: one-line task summary, then numbered steps.
+- Immediately after any step whose context block says "has_image: yes", insert this marker \
+  in EXACTLY this format: 🖼️[page {{page_number}} | entry {{entry_number}}]
+- Never insert a marker for "has_image: no". Never invent page/entry numbers not in context.
+- One marker per step maximum.
+
+Example output shape:
+"To shut down the assembly line: 
+1. Turn off the sealing machine by pressing the red stop button on its control panel. 🖼️[page 4 | entry 1]
+2. Stop the ring stapler by pressing both STOP buttons on the front panel. 🖼️[page 4 | entry 2]
+3. Turn off the oven burners by rotating both knobs to the off position — the oven must be \
+   completely cold before cleaning. 🖼️[page 4 | entry 5]"
+"""
 
 
 def _answer_language_for(language: str) -> str:

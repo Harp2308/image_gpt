@@ -52,7 +52,7 @@ class _InterceptHandler(logging.Handler):
 
 # Patch stdlib root logger so third-party libs also go through loguru
 logging.basicConfig(handlers=[_InterceptHandler()], level=logging.INFO, force=True)
-
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 def get_logger(name: str):
     return _loguru_logger.bind(name=name)

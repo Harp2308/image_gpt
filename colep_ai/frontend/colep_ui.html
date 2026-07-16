@@ -112,13 +112,13 @@
 </div>
 
 <script>
-const API_BASE = "http://localhost:8000";
+const API_BASE = "";
 let citationMap = {};
 
 async function runQuery() {
   const query = document.getElementById("queryInput").value.trim();
   if (!query) return;
-  const topK = parseInt(document.getElementById("topK").value) || 5;
+  const topK = parseInt(document.getElementById("topK").value) || 7;
   const btn = document.getElementById("sendBtn");
   const status = document.getElementById("status");
   btn.disabled = true;
