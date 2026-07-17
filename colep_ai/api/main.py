@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+app.mount("/qdrant_outputs", StaticFiles(directory="qdrant_outputs"), name="qdrant_outputs")
 app.mount("/static", StaticFiles(directory="colep_ai/frontend"), name="static")
 
 @app.on_event("startup")

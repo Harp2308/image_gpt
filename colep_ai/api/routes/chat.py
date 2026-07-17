@@ -40,8 +40,8 @@ def _resolve_image_url(image_ref: str | None, source_file: str, page_number: int
     if not image_ref:
         return None
     if image_ref.endswith(".png") and "_" in image_ref:
-        return f"/outputs/{source_file}/combined/page_{page_number}/{image_ref}"
-    return f"/outputs/{source_file}/crops/page_{page_number}/crops/{image_ref}.png"
+        return f"/qdrant_outputs/{source_file}/combined/page_{page_number}/{image_ref}"
+    return f"/qdrant_outputs/{source_file}/crops/page_{page_number}/crops/{image_ref}.png"
 
 
 @router.post("/query", response_model=QueryResponse)
