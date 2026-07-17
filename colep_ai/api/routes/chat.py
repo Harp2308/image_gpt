@@ -11,7 +11,7 @@ from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.new_page_retrieve import retrieve
 from colep_ai.generation.answer_builder import generate_from_retrieval
 from colep_ai.api.dependencies import get_openai, get_claude, get_qdrant
-from colep_ai.utils.query_log import log_query
+
 from colep_ai.core.config import settings
 logger = get_logger(__name__)
 router = APIRouter(tags=["Chat"])
@@ -72,12 +72,7 @@ def query(
         retrieval_response=retrieval_response,
     )
     _log_stage("generation", stage_start)
-    log_query(
-            question=req.query,
-            language=generation_output["language"],
-            model=settings.ANTHROPIC_MODEL,
-            answer=generation_output["answer"],
-        )
+    
 
     stage_start = time.monotonic()
     marker_meta: dict[str, tuple[str, int]] = {}

@@ -26,6 +26,7 @@ from tenacity import (
 from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.page_retrieval import RetrievalResponse
 from colep_ai.core.config import settings
+from colep_ai.utils.query_log import log_query
 import re
 logger = get_logger(__name__)
 
@@ -72,6 +73,11 @@ def format_context_for_llm(results: list[dict], language: str) -> tuple[str, Ent
                 lines.append(f"document_title: {payload['document_title']}")
             if payload.get("document_code"):
                 lines.append(f"document_code: {payload['document_code']}")
+            if payload.get("source_file"):
+                lines.append(f"source_file: {payload['source_file']}")
+            line_number = payload.get("line_number", payload.get("Line_number"))
+            if line_number is not None:
+                lines.append(f"line_number: {line_number}")
 
             # Inject legend once, only on the first entry of this page
             if legend_block and idx == 1:
@@ -98,15 +104,16 @@ def format_context_for_llm(results: list[dict], language: str) -> tuple[str, Ent
 
     return "\n\n".join(blocks), entry_lookup
 
-# v2
+# v3
 _ANSWER_SYSTEM_PROMPT = """You are a technical assistant for industrial factory operators. \
 Answer questions about machinery procedures based strictly on the provided context blocks.
 
 Rules:
 - Respond in {answer_language} only.
 - Ground every claim in the context. If the context is insufficient, say so explicitly.
-- Do NOT copy entry text verbatim. Synthesize it into clear, operator-facing instructions. \
-  Use active voice and imperative form ("Press the red button", not "The operator should press").
+- Do NOT copy entry text verbatim. Rewrite every step in your own words using clear, \
+  friendly, and professional language — as if explaining to a capable operator on the floor.
+- Use active voice and imperative form ("Press the red button", not "The operator should press").
 - When a context block contains a "fields" section, incorporate the relevant details naturally:
   - "Resp." → mention who performs the step (e.g. "This step is performed by the Mechanic")
   - "Material" → mention required tools/materials inline (e.g. "using clean cloths and alcohol")
@@ -120,13 +127,34 @@ Rules:
   in EXACTLY this format: 🖼️[page {{page_number}} | entry {{entry_number}}]
 - Never insert a marker for "has_image: no". Never invent page/entry numbers not in context.
 - One marker per step maximum.
+- Answer ONLY the scope of what was asked. If the question is about one specific step or action, \
+  answer only that step. Do not expand into the full procedure unless the user explicitly asks \
+  for the complete process.
+- Match answer length to question scope:
+  - "How do I turn off X?" → answer only the off sequence
+  - "What lubricant is used?" → one line answer, no steps
+  - "How do I do the full maintenance?" → full procedure is appropriate
+- If in doubt, answer less. The operator can always ask for more.
+
+At the end of every answer, add a source reference block in exactly this format:
+📄 Source
+- File: <source_file>
+- Line: <line_number>
+- Page(s): <page_number(s)>
+If multiple source files or lines are referenced, list each separately.
+If line_number is not present in the context, write: Line: not specified
 
 Example output shape:
-"To shut down the assembly line: 
+"To shut down the assembly line:
 1. Turn off the sealing machine by pressing the red stop button on its control panel. 🖼️[page 4 | entry 1]
 2. Stop the ring stapler by pressing both STOP buttons on the front panel. 🖼️[page 4 | entry 2]
 3. Turn off the oven burners by rotating both knobs to the off position — the oven must be \
-   completely cold before cleaning. 🖼️[page 4 | entry 5]"
+   completely cold before cleaning. 🖼️[page 4 | entry 5]
+
+📄 Source
+- File: O01.O067.1_Line5_Shutdown.xlsx
+- Line: 5
+- Page(s): 4"
 """
 
 
@@ -274,10 +302,12 @@ def generate_from_retrieval(
     Returns {"answer": str, "language": str, "results": list[dict]}
     """
     context, entry_lookup = format_context_for_llm(retrieval_response.results, retrieval_response.language)
+    
     answer = generate_answer(
         claude_client, query, context, retrieval_response.language, model=model
     )
     citations = extract_citations1(answer, entry_lookup)
+    log_query(question=query, language=retrieval_response.language, model=model, context=context, answer=answer)
 
     return {
         "answer": answer,
