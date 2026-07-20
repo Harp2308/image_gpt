@@ -10,7 +10,7 @@ import fitz
 import win32com.client
 
 from colep_ai.core.logger import get_logger
-from colep_ai.ingestion_V2.irm_strip import strip_irm
+from colep_ai.ingestion.irm_strip import strip_irm
 
 logger = get_logger(__name__)
 

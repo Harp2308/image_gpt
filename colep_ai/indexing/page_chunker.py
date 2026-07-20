@@ -16,6 +16,7 @@ def _page_point_id(document_code: str, document_title: str, source_file: str, pa
 def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict | None:
     entries = data.get("entries", [])
     legend = data.get("legend", [])
+    nodes = data.get("nodes", [])
 
     text_pt_parts = []
     text_en_parts = []
@@ -30,12 +31,28 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
         en = entry.get("entry_text_en", "").strip()
         img = entry.get("image_description", "").strip()
 
+        # table row fallback
+        if not pt:
+            fields = entry.get("fields", {})
+            if fields:
+                pt = " | ".join(f"{k} {v}" for k, v in fields.items())
+                en = pt
+
         if pt:
             text_pt_parts.append(pt)
         if en:
             text_en_parts.append(en)
         if img:
             image_desc_parts.append(img)
+
+    # flowchart fallback
+    if nodes and not text_pt_parts:
+        pt_desc = data.get("flow_chart_description", "").strip()
+        en_desc = data.get("flow_chart_description_en", "").strip()
+        if pt_desc:
+            text_pt_parts.append(pt_desc)
+        if en_desc:
+            text_en_parts.append(en_desc)
 
     if not text_pt_parts and not text_en_parts and not image_desc_parts:
         logger.warning(f"No embeddable text found in {source_file} page {page_number} — skipping")
@@ -54,9 +71,9 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             "page_number": page_number,
             "document_title": document_title,
             "document_code": document_code,
-            "line_number": data.get("line_number",""),
+            "line_number": data.get("line_number", ""),
             "entries": entries,
-            "legend" : legend
+            "legend": legend,
         },
     }
 

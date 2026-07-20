@@ -7,8 +7,8 @@ from datetime import datetime
 import anthropic
 
 from colep_ai.core.config import settings
-from colep_ai.ingestion_V2.ocr_extractor import get_vision_client
-from colep_ai.ingestion_V2.pipeline import run_pipeline,get_total_pages
+from colep_ai.ingestion.ocr_extractor import get_vision_client
+from colep_ai.ingestion.pipeline import run_pipeline,get_total_pages
 from colep_ai.generation.claude_client import get_claude_client
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)

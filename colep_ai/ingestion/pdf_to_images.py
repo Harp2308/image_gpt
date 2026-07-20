@@ -6,7 +6,7 @@ import cv2
 import fitz
 import numpy as np
 
-from colep_ai.ingestion_V2.xlsx_group_resolver import XlsxGroupResolver
+from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
 from colep_ai.core.logger import get_logger
 
 logger = get_logger(__name__)
