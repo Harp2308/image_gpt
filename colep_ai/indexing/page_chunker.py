@@ -16,7 +16,10 @@ def _page_point_id(document_code: str, document_title: str, source_file: str, pa
 def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict | None:
     entries = data.get("entries", [])
     legend = data.get("legend", [])
-    nodes = data.get("nodes", [])
+
+    # flowchart block lives under data["flowchart"], not data directly
+    flowchart = data.get("flowchart", {})
+    nodes = flowchart.get("nodes", [])
 
     text_pt_parts = []
     text_en_parts = []
@@ -45,21 +48,45 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
         if img:
             image_desc_parts.append(img)
 
-    # flowchart fallback
-    if nodes and not text_pt_parts:
-        pt_desc = data.get("flow_chart_description", "").strip()
-        en_desc = data.get("flow_chart_description_en", "").strip()
+    # flowchart fallback — only when no entry text found
+    if nodes and not text_pt_parts and not text_en_parts:
+        pt_desc = flowchart.get("flow_chart_description", "").strip()
+        en_desc = flowchart.get("flow_chart_description_en", "").strip()
         if pt_desc:
             text_pt_parts.append(pt_desc)
         if en_desc:
             text_en_parts.append(en_desc)
+        # node labels as supplementary text
+        node_labels = " | ".join(
+            n["label"] for n in nodes if isinstance(n, dict) and n.get("label")
+        )
+        if node_labels:
+            text_pt_parts.append(node_labels)
+            text_en_parts.append(node_labels)
 
     if not text_pt_parts and not text_en_parts and not image_desc_parts:
-        logger.warning(f"No embeddable text found in {source_file} page {page_number} — skipping")
-        return None
+        pt_desc = flowchart.get("flow_chart_description", "").strip()
+        en_desc = flowchart.get("flow_chart_description_en", "").strip()
+        if pt_desc:
+            text_pt_parts.append(pt_desc)
+            logger.info(f"Flowchart description (pt) used for {source_file} page {page_number}")
+        if en_desc:
+            text_en_parts.append(en_desc)
+            logger.info(f"Flowchart description (en) used for {source_file} page {page_number}")
+        if nodes:
+            node_labels = " | ".join(
+                n["label"] for n in nodes if isinstance(n, dict) and n.get("label")
+            )
+            if node_labels:
+                text_pt_parts.append(node_labels)
+                text_en_parts.append(node_labels)
+                logger.info(f"Flowchart node labels appended for {source_file} page {page_number}: {len(nodes)} nodes")
 
     document_code = data.get("document_code", "")
     document_title = data.get("document_title", "")
+
+    # line_number: always store as JSON string — list[int] or "" both serialise cleanly
+    line_number = data.get("line_number") or []
 
     return {
         "id": _page_point_id(document_code, document_title, source_file, page_number),
@@ -71,7 +98,8 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             "page_number": page_number,
             "document_title": document_title,
             "document_code": document_code,
-            "line_number": data.get("line_number", ""),
+            "line_number": line_number,            # list[int] e.g. [28,34,95] or []
+            "page_image_ids": data.get("page_image_ids", []),
             "entries": entries,
             "legend": legend,
         },

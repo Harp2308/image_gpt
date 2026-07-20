@@ -7,7 +7,7 @@ import anthropic
 
 from colep_ai.core.config import settings
 # from colep_ai.indexing.pipeline import run_indexing
-from colep_ai.indexing.page_pipeline import run_page_indexing
+from colep_ai.indexing.azure_page_pipeline import run_page_indexing
 from colep_ai.indexing.embedder import get_openai_client
 from colep_ai.core.logger import get_logger
 
@@ -27,6 +27,7 @@ def main(dir_path:str):
     logger.info(f"process ended for one folder at={end_time.strftime('%Y-%m-%dT%H:%M:%S')} duration={str(duration)}")
 
 import os
+from pathlib import Path
 if __name__ == "__main__":
     # d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
     # main(d)

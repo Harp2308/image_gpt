@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     QDRANT_URL: str = ""
     QDRANT_API_KEY: SecretStr = SecretStr("")
 
+    # ------------------------------------------------------------------
+    # AI Search
+    # ------------------------------------------------------------------
+    AZURE_SEARCH_ENDPOINT: str
+    AZURE_SEARCH_API_KEY: SecretStr
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

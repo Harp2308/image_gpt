@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # main(r"docs\e1.xlsx")
     from pathlib import Path
 
-    DOCS_DIR = Path(r"docs\Docs type")
+    DOCS_DIR = Path(r"documents")
     excel_files = list(DOCS_DIR.glob("*.xlsx"))
 
     for excel_file in excel_files:

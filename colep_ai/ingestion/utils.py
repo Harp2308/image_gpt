@@ -29,3 +29,13 @@ def normalize_filename(name: str) -> str:
 
 def _log_stage(stage: str, start: float) -> None:
     logger.info(f"Stage {stage} | elapsed={time.monotonic() - start:.2f}s")
+
+
+
+def normalize_result_schema(result: dict) -> dict:
+    if result.get("flowchart"):
+        result.setdefault("legend", {})
+        result.setdefault("entries", [])
+    else:
+        result.setdefault("flowchart", {})
+    return result

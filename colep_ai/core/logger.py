@@ -54,5 +54,9 @@ class _InterceptHandler(logging.Handler):
 logging.basicConfig(handlers=[_InterceptHandler()], level=logging.INFO, force=True)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+logging.getLogger("azure").setLevel(logging.WARNING)
+logging.getLogger("azure.core").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies").setLevel(logging.WARNING)
 def get_logger(name: str):
     return _loguru_logger.bind(name=name)

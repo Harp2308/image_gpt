@@ -22,7 +22,7 @@ from colep_ai.ingestion.pdf_to_images import extract_images_from_page
 from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
 from colep_ai.ingestion.image_group_resolver import extract_steps
 from colep_ai.ingestion.image_combiner import reconstruct_all_steps,group_image_ids_by_entry
-from colep_ai.ingestion.utils import normalize_filename,_log_stage
+from colep_ai.ingestion.utils import normalize_filename,_log_stage,normalize_result_schema
 from colep_ai.core.logger import get_logger
 from colep_ai.ingestion.flowchart_extractor import extract_flowchart
 
@@ -64,9 +64,16 @@ def get_total_pages(excel_path: str) -> int:
         return doc.page_count
 
 
-def extract_line_number(stem: str) -> int | None:
-    match = re.search(r'(?:Linha_|L_|L)(\d+)', stem, re.IGNORECASE)
-    return int(match.group(1)) if match else None
+def extract_line_number(stem: str) -> list[int] | None:
+    # Strip doc code prefix: Q01_L132_3_ or O01_O119_1_
+    stripped = re.sub(r'^[A-Z]\d+_[A-Z]\d+_\d+_', '', stem, flags=re.IGNORECASE)
+
+    # Match "Linhas_28_34_e_95" OR "L19_e_83" OR "Linha_19" OR "L13"
+    match = re.search(r'(?:Linhas?|L)[_ ]*((?:\d+[_ e,]*)+)', stripped, re.IGNORECASE)
+    if not match:
+        return None
+
+    return [int(n) for n in re.findall(r'\d+', match.group(1))]
 
 
 def run_pipeline(
@@ -102,11 +109,17 @@ def run_pipeline(
         result["page_number"] = page_number
         result["source_file"] = source_file
         result["line_number"] = extract_line_number(source_file)
+        result["page_image_id"] = [page_img.name]
+        
         _log_stage("4 flowchart_extraction", t); t = time.monotonic()
-
+        normalize_result_schema(result)
+        logger.info(f"line_number={result['line_number']} | source_file={source_file}")
+        
+        logger.info(f"Saved: {out_path}")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved: {out_path}")
+
+
 
     else:
         logger.info("Stage 3 | regular SOP — routing to standard pipeline")
@@ -127,18 +140,17 @@ def run_pipeline(
 
         # Stage 5: Claude association -> structured JSON
         if not crops_metadata:
-            logger.warning(f"No images extracted on page {page_number} — skipping Claude association")
-            result = {"results": [], "warning": "no_images_extracted"}
+            logger.warning(f"No images extracted on page {page_number} — using raw page image association")
+            result = extract_steps(
+                full_page_image_path=str(page_img),
+                image_meta=[],
+                client=claude_client,
+            )
+            result["page_image_id"] = [page_img.name]
+            
         else:
             result = extract_steps(full_page_image_path=str(marked_image_path), image_meta=crops_metadata, client=claude_client)
-            result["page_number"] = page_number
-            result["source_file"] = source_file
-            result["line_number"] = extract_line_number(source_file)
-            logger.info(f"line_number={result['line_number']} | source_file={source_file}")
-
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved: {out_path}")
+           
             logger.info(f"Stage 5 done | entries: {len(result.get('entries', []))}")
             _log_stage("5 claude_extraction", t); t = time.monotonic()
 
@@ -164,7 +176,14 @@ def run_pipeline(
         failed_steps = [k for k, v in recon_status.items() if v.get("success") is False]
         if failed_steps:
             logger.warning(f"Stage 6: reconstruction failed for steps {failed_steps}")
-
+            
+        normalize_result_schema(result)
+        result["page_number"] = page_number
+        result["source_file"] = source_file
+        result["line_number"] = extract_line_number(source_file)
+        logger.info(f"line_number={result['line_number']} | source_file={source_file}")
+        
+        logger.info(f"Saved: {out_path}")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
