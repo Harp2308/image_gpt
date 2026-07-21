@@ -162,6 +162,11 @@ def _build_index() -> SearchIndex:
             type=SearchFieldDataType.String,   # JSON-serialised list
             filterable=False,
         ),
+        SimpleField(
+            name="flowchart",
+            type=SearchFieldDataType.String,   # JSON-serialised dict
+            filterable=False,
+        ),
 
         # --- vector fields ---
         SearchField(
@@ -245,9 +250,10 @@ def upsert_page_chunks(
                 "text_pt": chunk.get("text_pt", ""),
                 "text_en": chunk.get("text_en", ""),
                 "image_desc": chunk.get("image_desc", ""),
-                # stored blobs — serialise lists to JSON string
+                # stored blobs — serialise to JSON string
                 "entries": json.dumps(payload.get("entries", []), ensure_ascii=False),
                 "legend": json.dumps(payload.get("legend", []), ensure_ascii=False),
+                "flowchart": json.dumps(payload.get("flowchart", {}), ensure_ascii=False),
                 # vectors
                 "vector_text_pt": v_pt,
                 "vector_text_en": v_en,

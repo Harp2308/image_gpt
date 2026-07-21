@@ -102,6 +102,7 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             "page_image_ids": data.get("page_image_ids", []),
             "entries": entries,
             "legend": legend,
+            "flowchart": flowchart,
         },
     }
 

@@ -78,9 +78,9 @@ def extract_line_number(stem: str) -> list[int] | None:
 
 def run_pipeline(
     excel_path: str,
-    page_number: int,  # 1-based, interface contract
-    vision_client: vision.ImageAnnotatorClient,
+    page_number: int,  # 1-based, interface contract,
     claude_client: anthropic.Anthropic,
+    vision_client: vision.ImageAnnotatorClient = None 
 ) -> dict:
     pipeline_start = time.monotonic()
     t = time.monotonic()
@@ -192,3 +192,12 @@ def run_pipeline(
 
     logger.info(f"Pipeline complete | total={time.monotonic() - pipeline_start:.2f}s | source_file={source_file} | page={page_number}")
     return result
+
+
+# if __name__=="__main__":
+#     from colep_ai.generation.claude_client import get_claude_client
+#     excel_path=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV2\documents\O01.O022.1 - OPL - Parametrizar LD188 sem poliuretano (PU) Linha 35.xlsx"
+#     page_number=1
+#     client=get_claude_client()
+
+#     run_pipeline(excel_path,page_number,client)
