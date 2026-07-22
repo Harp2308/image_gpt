@@ -39,6 +39,7 @@ from colep_ai.indexing.embedder import EMBED_DIM
 logger = get_logger(__name__)
 
 INDEX_NAME = "colep-page-based-chunks"
+# INDEX_NAME = "colep-page-based-chunks_endpoint_test"
 UPSERT_BATCH_SIZE = 50  # Azure max per upload call is 1000, but keep aligned with Qdrant
 
 
@@ -98,6 +99,12 @@ def _build_index() -> SearchIndex:
         ),
 
         # --- keyword / filter fields ---
+        SimpleField(
+            name="folder_name",
+            type=SearchFieldDataType.String,
+            filterable=True,   # ← allows WHERE folder_name eq 'Line5'
+            retrievable=True,  # ← returns it in search results
+        ),
         SimpleField(
             name="source_file",
             type=SearchFieldDataType.String,
@@ -240,6 +247,7 @@ def upsert_page_chunks(
             {
                 "id": chunk["id"],
                 # payload scalars
+                "folder_name": payload.get("folder_name", ""),
                 "source_file": payload.get("source_file", ""),
                 "document_code": payload.get("document_code", ""),
                 "document_title": payload.get("document_title", ""),
@@ -291,3 +299,27 @@ def upsert_page_chunks(
         )
 
     return failed_batches
+
+# -------------------------------------------------------------------------------------------
+#  delete by folder name 
+# -------------------------------------------------------------------------------------------
+
+def delete_by_folder_name(client: SearchClient, folder_name: str) -> int:
+    total_deleted = 0
+
+    while True:
+        results = list(client.search(
+            search_text="*",
+            filter=f"folder_name eq '{folder_name}'",
+            select=["id"],
+            top=1000,
+        ))
+        if not results:
+            break
+
+        batch = [{"id": r["id"]} for r in results]
+        client.delete_documents(documents=batch)
+        total_deleted += len(batch)
+
+    logger.info(f"Deleted {total_deleted} chunks for folder_name='{folder_name}'")
+    return total_deleted

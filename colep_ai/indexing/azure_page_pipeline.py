@@ -21,7 +21,7 @@ from colep_ai.database.azure_search_client import (
 logger = get_logger("azure_page_indexing_pipeline")
 
 
-def run_page_indexing(source_file: str, openai_client=None) -> None:
+def run_page_indexing(source_file: str, openai_client=None,folder_name: str = "") -> None:
     if openai_client is None:
         openai_client = get_openai_client()
 

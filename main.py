@@ -26,6 +26,7 @@ def main(excel_path:str):
                 page_number=page,
                 vision_client=vision_client,
                 claude_client=claude_client,
+                folder_name="flowchart"
             )
             logger.info(f"Page{page}done")
         except Exception as e:
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     DOCS_DIR = Path(r"documents")
     excel_files = list(DOCS_DIR.glob("*.xlsx"))
 
-    for excel_file in excel_files:
+    for excel_file in excel_files[:1]:
         try:
             logger.info(f"Processing: {excel_file.name}")
             main(str(excel_file))

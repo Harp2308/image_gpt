@@ -5,10 +5,11 @@ from azure.search.documents import SearchClient
 from fastapi import APIRouter, Depends, HTTPException
 from openai import AzureOpenAI
 from pydantic import BaseModel
-
+import json
 from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.ai_search_retrieval import retrieve, RetrievalRejected
 from colep_ai.generation.ai_search_generation import generate_from_retrieval
+from colep_ai.generation.prompts.check_query import CHECK_QUERY_SYSTEM_PROMPT
 from colep_ai.api.dependencies import get_openai, get_claude, get_search
 
 logger = get_logger(__name__)
@@ -42,6 +43,25 @@ def _resolve_image_url(image_ref: str | None, source_file: str, page_number: int
         return f"/outputs/{source_file}/combined/page_{page_number}/{image_ref}"
     return f"/outputs/{source_file}/crops/page_{page_number}/crops/{image_ref}.png"
 
+def _check_query(query: str, openai_client: AzureOpenAI) -> dict:
+    response = openai_client.chat.completions.create(
+        model="gpt-5.1",
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "system",
+                "content": CHECK_QUERY_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": query,
+            },
+        ],
+    )
+    logger.info(f" QUERY :{response.choices[0].message.content}")
+
+    return json.loads(response.choices[0].message.content)
 
 @router.post("/query", response_model=QueryResponse)
 def query(
@@ -54,7 +74,13 @@ def query(
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     request_start = time.monotonic()
-
+    check = _check_query(req.query, openai_client)
+    if check["intent"] not in ("retrieval"):
+        return QueryResponse(
+            answer=check["reply"],
+            citations=[],
+            language="",
+        )
     # --- retrieval ---
     stage_start = time.monotonic()
     retrieval_response = retrieve(

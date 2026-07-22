@@ -80,7 +80,9 @@ def run_pipeline(
     excel_path: str,
     page_number: int,  # 1-based, interface contract,
     claude_client: anthropic.Anthropic,
-    vision_client: vision.ImageAnnotatorClient = None 
+    vision_client: vision.ImageAnnotatorClient = None ,
+    folder_name: str = "",
+
 ) -> dict:
     pipeline_start = time.monotonic()
     t = time.monotonic()
@@ -108,6 +110,7 @@ def run_pipeline(
         result = extract_flowchart(str(page_img), claude_client)
         result["page_number"] = page_number
         result["source_file"] = source_file
+        result["folder_name"] = folder_name
         result["line_number"] = extract_line_number(source_file)
         result["page_image_id"] = [page_img.name]
         
@@ -180,6 +183,7 @@ def run_pipeline(
         normalize_result_schema(result)
         result["page_number"] = page_number
         result["source_file"] = source_file
+        result["folder_name"] = folder_name
         result["line_number"] = extract_line_number(source_file)
         logger.info(f"line_number={result['line_number']} | source_file={source_file}")
         

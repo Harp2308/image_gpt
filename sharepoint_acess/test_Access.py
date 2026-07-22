@@ -84,4 +84,32 @@ def download_from_folder(path, folder_name):
         if "folder" in item:
             download_from_folder(f"{path}/{item['name']}", item["name"])
 
-download_from_folder("/ShopFloor", "ShopFloor")
+# download_from_folder("/ShopFloor", "ShopFloor")
+
+import requests
+
+def find_folder(current_path, target_folder):
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:{current_path}:/children"
+
+    items = requests.get(url, headers=headers).json().get("value", [])
+
+    for item in items:
+        if "folder" not in item:
+            continue
+
+        folder_path = f"{current_path}/{item['name']}"
+
+        if item["name"] == target_folder:
+            print(f"Found!")
+            print(f"Path: {folder_path}")
+            print(f"ID:   {item['id']}")
+            return folder_path, item["id"]
+
+        result = find_folder(folder_path, target_folder)
+        if result:
+            return result
+
+    return None
+
+
+find_folder("/ShopFloor", "ShopFloor Assistant AI - Sample Questions")

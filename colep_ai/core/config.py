@@ -34,17 +34,60 @@ class Settings(BaseSettings):
     OPENAI_ENDPOINT: SecretStr = SecretStr("")
      
     # ------------------------------------------------------------------
-    # Qdrant
+    # Qdrant (kept for legacy chat retrieval — not used in ingestion)
     # ------------------------------------------------------------------
     QDRANT_URL: str = ""
     QDRANT_API_KEY: SecretStr = SecretStr("")
 
     # ------------------------------------------------------------------
-    # AI Search
+    # Azure AI Search
     # ------------------------------------------------------------------
-    AZURE_SEARCH_ENDPOINT: str
-    AZURE_SEARCH_API_KEY: SecretStr
+    AZURE_SEARCH_ENDPOINT: str = ""
+    AZURE_SEARCH_API_KEY: SecretStr = SecretStr("")
 
+    # ------------------------------------------------------------------
+    # Redis
+    # ------------------------------------------------------------------
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
+
+    # ------------------------------------------------------------------
+    # Celery
+    # ------------------------------------------------------------------
+    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/2"
+
+    # ------------------------------------------------------------------
+    # SharePoint / Microsoft Graph
+    # ------------------------------------------------------------------
+    AZURE_TENANT_ID: str = ""
+    AZURE_CLIENT_ID: str = ""
+    AZURE_CLIENT_SECRET: SecretStr = SecretStr("")
+    SHAREPOINT_HOST: str = ""        # e.g. contoso.sharepoint.com
+    SHAREPOINT_SITE_PATH: str = ""   # e.g. /sites/colep
+
+    # ------------------------------------------------------------------
+    # Ingestion pipeline tuning
+    # ------------------------------------------------------------------
+
+    # Max parallel pages processed inside a single Excel ingest task.
+    # Keep low (3-5) to avoid hammering Claude API rate limits.
+    # With N Celery ingestion workers each running PAGE_THREAD_WORKERS
+    # threads, total concurrent Claude calls = N * PAGE_THREAD_WORKERS.
+    PAGE_THREAD_WORKERS: int = 3
+
+    # Fraction of pages that may fail before the entire file is marked
+    # failed and indexing is skipped. 0.5 = up to 50% page failures
+    # are tolerated; the file proceeds to indexing with partial results.
+    # Set to 0.0 to require all pages to succeed.
+    INGEST_PAGE_FAILURE_THRESHOLD: float = 0.5
+
+    # Redis TTL for job and file tracker keys (seconds). 7 days default.
+    JOB_TRACKER_TTL_S: int = 7 * 24 * 60 * 60
+
+    # Root directory for temporarily downloaded SharePoint Excel files.
+    # Each job gets its own subdirectory: downloads/{job_id}/
+    # Deleted by cleanup_task after successful indexing.
+    DOWNLOADS_ROOT: Path = Path("downloads")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -53,7 +96,7 @@ class Settings(BaseSettings):
     )
 
     # ==============================================================
-    # Output Directory Helpers
+    # Output directory helpers
     # ==============================================================
 
     def doc_root(self, source_file: str) -> Path:
@@ -76,6 +119,10 @@ class Settings(BaseSettings):
 
     def combined_dir(self, source_file: str) -> Path:
         return self.doc_root(source_file) / "combined"
+
+    def downloads_dir(self, job_id: str) -> Path:
+        """Temporary download location for a specific ingestion job."""
+        return self.DOWNLOADS_ROOT / job_id
 
     def ensure_doc_dirs(self, source_file: str) -> None:
         directories = (

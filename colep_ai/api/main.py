@@ -1,6 +1,11 @@
+"""
+api/main.py
+"""
+
 import anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from openai import AzureOpenAI
@@ -12,6 +17,7 @@ from colep_ai.database.azure_search_client import get_search_client
 from colep_ai.generation.claude_client import get_claude_client
 from colep_ai.indexing.embedder import get_openai_client
 from colep_ai.api.routes.chat import router as chat_router
+from colep_ai.api.routes.ingest import router as ingest_router
 
 logger = get_logger(__name__)
 
@@ -29,13 +35,15 @@ app.mount("/static", StaticFiles(directory="colep_ai/frontend"), name="static")
 
 @app.on_event("startup")
 def _init_clients():
-    deps.openai_client = get_openai_client()
+    deps.openai_client = get_openai_client()  # ← just use the same factory as indexing
     deps.claude_client = get_claude_client()
     deps.search_client = get_search_client()
-    logger.info("Clients initialized: AzureOpenAI, Anthropic, AzureSearch")
+    logger.info("Clients initialized")
 
 
+# Register routers
 app.include_router(chat_router)
+app.include_router(ingest_router)
 
 
 @app.get("/")
