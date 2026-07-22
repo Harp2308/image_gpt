@@ -31,7 +31,7 @@ from pathlib import Path
 if __name__ == "__main__":
     # d=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\e1\results"
     # main(d)
-    root_dir=r"outputs_16_7"
+    root_dir=r"outputs"
     start_time=datetime.now()
     logger.info(f"process started for ops at={start_time.strftime('%Y-%m-%dT%H:%M:%S')} ")
 
@@ -44,3 +44,25 @@ if __name__ == "__main__":
     duration = end_time - start_time
     logger.info(f"process ended at={end_time.strftime('%Y-%m-%dT%H:%M:%S')} duration={str(duration)}")
 
+
+# if __name__ == "__main__":
+        # from colep_ai.database.azure_search_client import get_index_client,INDEX_NAME
+        # get_index_client().delete_index(INDEX_NAME)
+        # print("deleted index ")
+#     import os
+#     from pathlib import Path
+#     root_dir = r"outputs"
+
+#     TARGETS = {
+#     "Q01_I166_1_Controlar_Cravacoes_em_Sistema_Informatico_SI_General_Line",
+#     "O01_O022_1_OPL_Parametrizar_LD188_sem_poliuretano_PU_Linha_35",
+#     "Q01_T016_1_Paletes_alternativas",
+# }
+
+#     for subdir, _, _ in os.walk(root_dir):
+#         if (
+#             os.path.basename(subdir) == "results"
+#             and Path(subdir).parent.name in TARGETS
+#         ):
+#             print(subdir)
+#             main(subdir)
