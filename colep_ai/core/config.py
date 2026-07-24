@@ -32,7 +32,15 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     OPENAI_API_KEY: SecretStr = SecretStr("")
     OPENAI_ENDPOINT: SecretStr = SecretStr("")
-     
+
+    # ------------------------------------------------------------------
+    # Embedings
+    # ------------------------------------------------------------------
+
+    EMBED_MODEL: str   = "text-embedding-3-large"        
+    EMBED_DIM: int = 3072
+    BATCH_SIZE: int = 100
+        
     # ------------------------------------------------------------------
     # Qdrant (kept for legacy chat retrieval — not used in ingestion)
     # ------------------------------------------------------------------

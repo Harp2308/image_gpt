@@ -8,6 +8,7 @@ Line number → OData pre-filter on line_number collection field.
 
 import json
 import re
+import time
 from dataclasses import dataclass
 
 from azure.core.exceptions import HttpResponseError
@@ -19,8 +20,8 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from colep_ai.core.logger import get_logger
 from colep_ai.database.azure_search_client import get_search_client
-from colep_ai.indexing.embedder import EMBED_MODEL, get_openai_client
-
+from colep_ai.indexing.embedder import  get_openai_client
+from colep_ai.core.config import settings
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -108,7 +109,7 @@ def _build_odata_filter(line_number: int | None) -> str | None:
     reraise=True,
 )
 def _embed(client: AzureOpenAI, text: str) -> list[float]:
-    resp = client.embeddings.create(model=EMBED_MODEL, input=[text])
+    resp = client.embeddings.create(model=settings.EMBED_MODEL, input=[text])
     return resp.data[0].embedding
 
 
@@ -230,9 +231,13 @@ def retrieve(
     odata_filter = _build_odata_filter(line_number)
 
     # Step 3 — embed
+    embed_start = time.time()
     query_vector = _embed(openai_client, query)
-
+    embed_time = time.time() - embed_start
+    logger.info(f"Embedding generation took {embed_time:.3f}s")
+    
     # Step 4 — hybrid search
+    search_start = time.time()
     text_field, vector_field = _LANG_FIELD_MAP[language]
 
     results = _hybrid_search(
@@ -244,6 +249,8 @@ def retrieve(
         odata_filter=odata_filter,
         top_k=top_k,
     )
+    search_time = time.time() - search_start
+    logger.info(f"Retrieval took {search_time:.3f}s")
 
     # Step 5 — no results
     if not results:

@@ -24,13 +24,13 @@ Why persist assistant turn in background?
 
 import time
 import uuid
-
 import anthropic
 import redis.asyncio as aioredis
 from azure.search.documents import SearchClient
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from openai import AzureOpenAI
 from pydantic import BaseModel
+import asyncio
 
 from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.ai_search_retrieval import retrieve, RetrievalRejected
@@ -46,9 +46,10 @@ from colep_ai.database.redis_client import set_summary
 # from colep_ai.database.cosmos_client import update_summary as cosmos_update_summary, append_turn as cosmos_append_turn
 from colep_ai.database.mongo_client import update_summary as cosmos_update_summary
 from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
+
 logger = get_logger(__name__)
 router = APIRouter(tags=["Chat"])
-
+loop = asyncio.get_event_loop()
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -129,7 +130,7 @@ async def _persist_assistant_and_summarise(
     current_summary: str,
     redis: aioredis.Redis,
     cosmos_container,
-    claude_client: anthropic.Anthropic,
+    openai_client: AzureOpenAI,
 ) -> None:
     """
     Runs after the response is sent to the client.
@@ -170,7 +171,7 @@ async def _persist_assistant_and_summarise(
 
             if pending_user:
                 updated_summary = await update_summary_incremental(
-                    claude_client=claude_client,
+                    openai_client=openai_client,
                     existing_summary=current_summary,
                     user_message=pending_user,
                     assistant_message=evicted_assistant,
@@ -289,7 +290,7 @@ async def query(
     # 3. Classify query (no history — classifier only)
     # ------------------------------------------------------------------
     stage_start = time.monotonic()
-    check = _check_query(req.query, openai_client)
+    check = await loop.run_in_executor(None, _check_query, req.query, openai_client)
     _log_stage("check_query", stage_start)
 
     if not check["needs_retrieval"]:
@@ -304,7 +305,7 @@ async def query(
             current_summary=state.summary,
             redis=redis,
             cosmos_container=cosmos_container,
-            claude_client=claude_client,
+            openai_client=openai_client,
         )
 
         return QueryResponse(
@@ -318,12 +319,10 @@ async def query(
     # 4. Retrieval
     # ------------------------------------------------------------------
     stage_start = time.monotonic()
-    retrieval_response = retrieve(
-        query=req.query,
-        openai_client=openai_client,
-        search_client=search_client,
-        top_k=req.top_k,
-    )
+    retrieval_response = await loop.run_in_executor(
+    None,
+    lambda: retrieve(query=req.query, openai_client=openai_client, search_client=search_client, top_k=req.top_k)
+)
     _log_stage("retrieval", stage_start)
 
     if isinstance(retrieval_response, RetrievalRejected):
@@ -338,12 +337,15 @@ async def query(
     # 6. Generation with history
     # ------------------------------------------------------------------
     stage_start = time.monotonic()
-    generation_output = generate_from_retrieval(
+    generation_output = await loop.run_in_executor(
+    None,
+    lambda: generate_from_retrieval(
         claude_client=claude_client,
         query=req.query,
         retrieval_response=retrieval_response,
         history_messages=history_messages,
     )
+)
     _log_stage("generation", stage_start)
 
     # ------------------------------------------------------------------
@@ -376,7 +378,7 @@ async def query(
         current_summary=state.summary,
         redis=redis,
         cosmos_container=cosmos_container,
-        claude_client=claude_client,
+        openai_client=openai_client,
     )
 
     _log_stage("total_request", request_start)

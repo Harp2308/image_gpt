@@ -550,7 +550,7 @@ async function clearAllHistory() {
   if (!confirm('Delete ALL chat history for this user?')) return;
   
   try {
-    const res = await fetch('/delete_history?user_id=1', { method: 'DELETE' });
+    const res = await fetch(`/sessions/clear-all?user_id=${encodeURIComponent(USER_ID)}&user_name=${encodeURIComponent(USER_NAME)}`, { method: 'DELETE' });
     if (res.ok) {
       alert('History cleared');
       loadSessions(); // refresh list
@@ -564,7 +564,7 @@ async function clearAllHistory() {
 async function deleteSession(sessionId) {
   if (!confirm('Delete this session?')) return;
   try {
-    const res = await fetch(`/delete_session/${sessionId}`, { method: 'DELETE' });
+    const res = await fetch(`/sessions/${sessionId}`, { method: 'DELETE' });
     if (res.ok) {
       loadSessions();
     }

@@ -34,7 +34,6 @@ from azure.search.documents.indexes.models import (
 
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
-from colep_ai.indexing.embedder import EMBED_DIM
 
 logger = get_logger(__name__)
 
@@ -185,21 +184,21 @@ def _build_index() -> SearchIndex:
             name="vector_text_pt",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
             searchable=True,
-            vector_search_dimensions=EMBED_DIM,
+            vector_search_dimensions=settings.EMBED_DIM,
             vector_search_profile_name="hnsw-profile",
         ),
         SearchField(
             name="vector_text_en",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
             searchable=True,
-            vector_search_dimensions=EMBED_DIM,
+            vector_search_dimensions=settings.EMBED_DIM,
             vector_search_profile_name="hnsw-profile",
         ),
         SearchField(
             name="vector_image_desc",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
             searchable=True,
-            vector_search_dimensions=EMBED_DIM,
+            vector_search_dimensions=settings.EMBED_DIM,
             vector_search_profile_name="hnsw-profile",
         ),
     ]

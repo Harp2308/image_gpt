@@ -57,12 +57,10 @@ def get_cosmos_container():
     """Matches cosmos_client.py public API — returns the collection."""
     return _get_collection()
 
-
-def ensure_cosmos_resources() -> None:
-    """
-    MongoDB creates collections on first write — nothing to do here.
-    Kept for API compatibility with cosmos_client.py.
-    """
+async def ensure_cosmos_resources() -> None:
+    col = _get_collection()
+    await col.create_index([("user_id", 1), ("user_name", 1), ("doc_type", 1)])
+    await col.create_index([("session_id", 1), ("doc_type", 1)])
     logger.info(
         f"MongoDB ready | db={settings.COSMOS_DB_NAME} | "
         f"collection={settings.COSMOS_CONTAINER_NAME}"
@@ -180,7 +178,27 @@ async def list_sessions(collection, limit: int = 100) -> list[dict]:
 
 
 async def delete_session(collection, session_id: str) -> int:
-    """Delete session and all its turns."""
-    result = await collection.delete_many({"session_id": session_id})
-    logger.info(f"Deleted session | session_id={session_id} | count={result.deleted_count}")
-    return result.deleted_count
+    r1 = await collection.delete_one({"_id": session_id, "doc_type": "session"})
+    r2 = await collection.delete_many({"session_id": session_id, "doc_type": "turn"})
+    total = r1.deleted_count + r2.deleted_count
+    logger.info(f"Deleted session | session_id={session_id} | count={total}")
+    return total
+
+
+async def delete_sessions_by_user(collection, user_id: str, user_name: str) -> int:
+    """Delete all sessions and turns for a given user_id + user_name."""
+    session_docs = await collection.find(
+        {"doc_type": "session", "user_id": user_id, "user_name": user_name},
+        {"_id": 1}
+    ).to_list(length=None)
+
+    session_ids = [d["_id"] for d in session_docs]
+    if not session_ids:
+        logger.info(f"No sessions found | user_id={user_id} user_name={user_name}")
+        return 0
+
+    r1 = await collection.delete_many({"_id": {"$in": session_ids}, "doc_type": "session"})
+    r2 = await collection.delete_many({"session_id": {"$in": session_ids}, "doc_type": "turn"})
+    total = r1.deleted_count + r2.deleted_count
+    logger.info(f"Deleted user sessions | user_id={user_id} user_name={user_name} | count={total}")
+    return total

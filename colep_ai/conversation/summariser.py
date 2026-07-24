@@ -29,7 +29,7 @@ import anthropic
 
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
-
+from openai import AzureOpenAI
 logger = get_logger(__name__)
 
 _SUMMARY_SYSTEM_PROMPT = """\
@@ -72,7 +72,7 @@ def _build_summary_prompt(
 
 
 def _call_summariser_sync(
-    claude_client: anthropic.Anthropic,
+     openai_client: AzureOpenAI,
     existing_summary: str,
     user_message: str,
     assistant_message: str,
@@ -83,7 +83,7 @@ def _call_summariser_sync(
     """
     prompt = _build_summary_prompt(existing_summary, user_message, assistant_message)
 
-    resp = claude_client.messages.create(
+    resp = openai_client.chat.completions.create(
         model=settings.SUMMARY_MODEL,
         max_tokens=300,         # summaries are short by design
         system=_SUMMARY_SYSTEM_PROMPT,
@@ -91,13 +91,13 @@ def _call_summariser_sync(
         temperature=0,
     )
 
-    updated = resp.content[0].text.strip()
+    updated = resp.choices[0].message.content.strip()
     logger.debug(f"Summary updated | tokens_out={resp.usage.output_tokens}")
     return updated
 
 
 async def update_summary_incremental(
-    claude_client: anthropic.Anthropic,
+     openai_client: AzureOpenAI,
     existing_summary: str,
     user_message: str,
     assistant_message: str,
@@ -109,7 +109,7 @@ async def update_summary_incremental(
     try:
         updated = await asyncio.to_thread(
             _call_summariser_sync,
-            claude_client,
+            openai_client,
             existing_summary,
             user_message,
             assistant_message,
