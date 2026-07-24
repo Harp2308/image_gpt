@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colep AI</title>
+<style>
+  :root[data-theme="light"] {
+    --bg-app: #f3f0f9;
+    --bg-sidebar: #ede8f7;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f7f4fd;
+    --bg-active: #e4ddf5;
+    --border: #dcd4f0;
+    --accent: #7c5cbf;
+    --accent-soft: #ede8f7;
+    --text-primary: #1a1330;
+    --text-secondary: #6b5c8a;
+    --text-muted: #9e8fbf;
+    --tag-open-bg: #edf7ed;
+    --tag-open-text: #2e7d32;
+    --divider: #e8e0f5;
+    --scrollbar: #dcd4f0;
+  }
+  :root[data-theme="dark"] {
+    --bg-app: #150f24;
+    --bg-sidebar: #1e1633;
+    --bg-card: #261d3e;
+    --bg-card-hover: #2e2449;
+    --bg-active: #332959;
+    --border: #3a2e5c;
+    --accent: #a987e8;
+    --accent-soft: #2a1f4a;
+    --text-primary: #ede8ff;
+    --text-secondary: #b09fd8;
+    --text-muted: #7a6aa0;
+    --tag-open-bg: #1a2e1a;
+    --tag-open-text: #80c880;
+    --divider: #2e2450;
+    --scrollbar: #3a2e5c;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    transition: width 0.2s, background 0.2s, border-color 0.2s;
+    overflow: hidden;
+  }
+  .sidebar.collapsed { width: 56px; }
+  .sidebar.collapsed .sidebar-label,
+  .sidebar.collapsed .logo-text,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .toggle-label,
+  .sidebar.collapsed .toggle-switch { display: none; }
+  .sidebar.collapsed .sidebar-logo { justify-content: center; padding: 0 0 24px; }
+  .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
+  .sidebar.collapsed .theme-toggle { justify-content: center; padding: 8px 0; }
+
+  .sidebar-logo {
+    padding: 0 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .logo-mark svg { width: 16px; height: 16px; fill: #fff; }
+  .logo-text { font-size: 14px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; white-space: nowrap; }
+  .logo-sub { font-size: 10px; color: var(--text-muted); font-weight: 400; display: block; margin-top: 1px; }
+
+  .sidebar-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-muted);
+    padding: 0 20px 8px; white-space: nowrap;
+  }
+  .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13.5px; color: var(--text-secondary); font-weight: 500;
+    text-decoration: none; transition: background 0.15s, color 0.15s; white-space: nowrap;
+  }
+  .nav-item:hover { background: var(--bg-active); color: var(--text-primary); }
+  .nav-item.active { background: var(--bg-active); color: var(--accent); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .sidebar-bottom { padding: 16px 10px 0; border-top: 1px solid var(--divider); margin: 0 10px; }
+  .theme-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; color: var(--text-secondary); font-weight: 500;
+    transition: background 0.15s; margin-top: 4px; white-space: nowrap;
+  }
+  .theme-toggle:hover { background: var(--bg-active); }
+  .toggle-switch {
+    width: 36px; height: 20px; background: var(--border);
+    border-radius: 10px; position: relative; transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle-switch.on { background: var(--accent); }
+  .toggle-knob {
+    position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px; background: #fff;
+    border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle-switch.on .toggle-knob { transform: translateX(16px); }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── History view ── */
+  #history-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  .topbar {
+    padding: 20px 32px 0;
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+  .breadcrumb span { color: var(--text-primary); font-weight: 500; }
+  .breadcrumb .sep { color: var(--text-muted); font-size: 14px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff;
+  }
+
+  .content { padding: 28px 32px; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
+  .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
+  .page-sub { font-size: 13.5px; color: var(--text-muted); margin-top: 4px; }
+
+  .clear-btn {
+    display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card);
+    color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .clear-btn:hover { background: var(--bg-card-hover); border-color: var(--accent); color: var(--accent); }
+  .clear-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .session-list { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; }
+  .session-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; display: grid; grid-template-columns: 36px 1fr auto;
+    gap: 0 14px; align-items: start; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .session-card:hover { background: var(--bg-card-hover); border-color: var(--accent); box-shadow: 0 2px 12px rgba(124,92,191,0.08); }
+  .session-icon {
+    width: 36px; height: 36px; border-radius: 9px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .session-icon svg { width: 16px; height: 16px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .session-body { min-width: 0; }
+  .session-title-row { display: flex; align-items: center; gap: 8px; }
+  .session-title { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; }
+  .session-preview { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+  .session-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .session-time { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+  .status-open { font-size: 11px; font-weight: 600; color: var(--tag-open-text); background: var(--tag-open-bg); padding: 2px 9px; border-radius: 20px; }
+
+  /* ── Chat view ── */
+  #chat-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+
+  .chat-topbar {
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+  }
+  .back-btn {
+    background: none; border: none; cursor: pointer; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500;
+    padding: 6px 10px; border-radius: 8px; transition: background 0.15s;
+  }
+  .back-btn:hover { background: var(--bg-active); }
+  .back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 28px 32px;
+    display: flex; flex-direction: column; gap: 12px;
+    scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent;
+  }
+  .chat-messages::-webkit-scrollbar { width: 6px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+  .msg-user {
+    align-self: flex-end; background: var(--accent); color: #fff;
+    padding: 10px 16px; border-radius: 12px 12px 2px 12px;
+    max-width: 65%; font-size: 13.5px; line-height: 1.5; word-break: break-word;
+  }
+  .msg-assistant {
+    align-self: flex-start; background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-primary); padding: 16px 20px; border-radius: 12px 12px 12px 2px;
+    max-width: 75%; font-size: 13.5px; line-height: 1.6; word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .msg-assistant ol { padding-left: 1.4em; margin: 8px 0; }
+  .msg-assistant li { margin-bottom: 6px; }
+  .msg-assistant strong, .msg-assistant b { font-weight: 600; }
+  .msg-assistant blockquote, .msg-assistant .note {
+    border-left: 3px solid var(--accent); padding-left: 12px; margin: 10px 0; color: var(--text-secondary);
+  }
+  .msg-assistant .source {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted);
+  }
+  .msg-assistant img {
+  max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;
+}
+  .msg-muted { color: var(--text-muted); }
+
+  .chat-input-bar {
+    padding: 16px 32px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0;
+  }
+  .chat-input-bar input {
+    flex: 1; padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg-card); color: var(--text-primary); font-size: 14px;
+    outline: none; transition: border-color 0.15s;
+  }
+  .chat-input-bar input:focus { border-color: var(--accent); }
+  .chat-input-bar button {
+    padding: 10px 20px; background: var(--accent); color: #fff; border: none;
+    border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+  }
+  .chat-input-bar button:hover { opacity: 0.85; }
+  .chat-input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .empty-state { text-align: center; padding: 80px 0; color: var(--text-muted); }
+  .empty-state svg { width: 48px; height: 48px; stroke: var(--border); fill: none; stroke-width: 1.5; margin-bottom: 16px; display: block; margin-left: auto; margin-right: auto; }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+  .loading { text-align: center; padding: 40px 0; color: var(--text-muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark" onclick="toggleSidebar()" title="Toggle sidebar">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div class="logo-text">
+      Colep AI
+      <span class="logo-sub">Factory Assistant</span>
+    </div>
+  </div>
+
+  <div class="sidebar-label">Assistant</div>
+  <nav class="sidebar-nav">
+    <a class="nav-item" href="#" onclick="newChat(); return false;">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <span class="nav-label">New chat</span>
+    </a>
+    <a class="nav-item active" href="#" onclick="showHistory(); return false;">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="nav-label">Chat history</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="theme-toggle" onclick="toggleTheme()">
+      <span class="toggle-label" id="theme-label">Dark mode</span>
+      <div class="toggle-switch" id="toggle">
+        <div class="toggle-knob"></div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- History view -->
+  <div id="history-view">
+    <div class="topbar">
+      <div class="breadcrumb">
+        Colep Space <span class="sep">›</span> AI Assistant <span class="sep">›</span> <span>Chat history</span>
+      </div>
+      <div class="user-chip">
+        <span>Rui Valente</span>
+        <div class="avatar">RV</div>
+      </div>
+    </div>
+    <div class="content">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Chat history</div>
+          <div class="page-sub">Your previous conversations with the Colep Packaging AI.</div>
+        </div>
+        <button class="clear-btn" onclick="clearAllHistory()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        Clear all
+      </button>
+      </div>
+      <div id="session-list" class="session-list"></div>
+    </div>
+  </div>
+
+  <!-- Chat view -->
+  <div id="chat-view">
+    <div class="chat-topbar">
+      <button class="back-btn" onclick="showHistory()">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back
+      </button>
+      <span id="chat-title" style="font-size:15px; font-weight:600; color:var(--text-primary);"></span>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-bar">
+      <input id="chat-input" type="text" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendMessage()">
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Constants ──
+  const USER_ID = "1";
+  const USER_NAME = "Rui Valente";
+
+  // ── State ──
+  let activeSessionId = null;
+  let dark = false;
+
+  // ── Sidebar collapse ──
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  }
+  
+  // ── Theme ──
+  const htmlEl = document.documentElement;
+  function toggleTheme() {
+    dark = !dark;
+    htmlEl.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.getElementById('toggle').classList.toggle('on', dark);
+    document.getElementById('theme-label').textContent = dark ? 'Light mode' : 'Dark mode';
+  }
+
+  // ── View switching ──
+  function showHistory() {
+    document.getElementById('history-view').style.display = 'flex';
+    document.getElementById('chat-view').style.display = 'none';
+    document.getElementById('history-view').style.flexDirection = 'column';
+    setActiveNav(1);
+    loadSessions();
+  }
+
+  function showChatView() {
+    document.getElementById('history-view').style.display = 'none';
+    document.getElementById('chat-view').style.display = 'flex';
+    document.getElementById('chat-view').style.flexDirection = 'column';
+  }
+
+  function setActiveNav(index) {
+    document.querySelectorAll('.nav-item').forEach((el, i) => el.classList.toggle('active', i === index));
+  }
+
+  // ── Helpers ──
+  function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function relativeTime(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Today · ${new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    if (hrs < 48) return 'Yesterday';
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days} days ago`;
+    if (days < 14) return '1 week ago';
+    return `${Math.floor(days/7)} weeks ago`;
+  }
+
+  // ── Sessions list ──
+  async function loadSessions() {
+    const list = document.getElementById('session-list');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+    try {
+      const res = await fetch('/sessions');
+      if (!res.ok) throw new Error(res.statusText);
+      renderSessions(await res.json());
+    } catch(e) {
+      list.innerHTML = `<div class="empty-state"><p>Failed to load sessions.<br>${e.message}</p></div>`;
+    }
+  }
+
+  function renderSessions(sessions) {
+  const list = document.getElementById('session-list');
+  if (!sessions.length) {
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <p>No conversations yet.<br>Start a new chat to get going.</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = sessions.map(s => {
+    const title = s.summary ? s.summary.split('.')[0].trim().slice(0, 72) : `Session ${s.session_id.slice(0, 8)}`;
+    const preview = s.summary ? s.summary.slice(title.length).replace(/^[\.\s]+/, '').slice(0, 100) : '';
+    return `<div class="session-card" onclick="openSession('${s.session_id}', ${JSON.stringify(title).replace(/"/g,'&quot;')})">
+      <div class="session-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="session-body">
+        <div class="session-title-row"><div class="session-title">${escHtml(title)}</div></div>
+        <div class="session-preview">${preview ? escHtml(preview) + '...' : '<em>No summary yet</em>'}</div>
+        <div class="session-preview" style="margin-top:3px;font-size:11.5px;">${escHtml(s.user_name || '')}</div>
+      </div>
+      <div class="session-meta">
+        <div class="session-time">${relativeTime(s.updated_at)}</div>
+        <span class="status-open">Open</span>
+        <button onclick="event.stopImmediatePropagation(); deleteSession('${s.session_id}'); return false;" style="background:none;border:none;color:#c0392b;cursor:pointer;margin-left:8px;">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+  // ── Open existing session ──
+  async function openSession(sessionId, title) {
+    activeSessionId = sessionId;
+    document.getElementById('chat-title').textContent = title;
+    document.getElementById('chat-messages').innerHTML = '<div class="loading">Loading history...</div>';
+    showChatView();
+    setActiveNav(-1);
+    try {
+      const res = await fetch(`/history/${sessionId}`);
+      if (!res.ok) throw new Error(res.statusText);
+      renderHistory((await res.json()).turns);
+    } catch(e) {
+      document.getElementById('chat-messages').innerHTML = `<div class="empty-state"><p>Failed to load history.<br>${e.message}</p></div>`;
+    }
+  }
+
+  function renderHistory(turns) {
+    const c = document.getElementById('chat-messages');
+    if (!turns.length) { c.innerHTML = '<div class="empty-state"><p>No messages yet.</p></div>'; return; }
+    c.innerHTML = turns.map(t => `
+      <div class="msg-user">${escHtml(t.user)}</div>
+      <div class="msg-assistant">${escHtml(t.assistant).replace(/\n/g, '<br>')}</div>
+    `).join('');
+    c.scrollTop = c.scrollHeight;
+  }
+
+  // ── New chat ──
+  function newChat() {
+    activeSessionId = null;
+    document.getElementById('chat-title').textContent = 'New conversation';
+    document.getElementById('chat-messages').innerHTML = '';
+    showChatView();
+    setActiveNav(0);
+    document.getElementById('chat-input').focus();
+  }
+
+  // ── Send message — POST /query exactly as swagger ──
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const query = input.value.trim();
+    if (!query) return;
+
+    input.value = '';
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+
+    const c = document.getElementById('chat-messages');
+    c.innerHTML += `<div class="msg-user">${escHtml(query)}</div>`;
+    const pendingId = 'pending-' + Date.now();
+    c.innerHTML += `<div class="msg-assistant msg-muted" id="${pendingId}">Thinking...</div>`;
+    c.scrollTop = c.scrollHeight;
+
+    try {
+      const url = activeSessionId
+        ? `/query?session_id=${encodeURIComponent(activeSessionId)}`
+        : '/query';
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          top_k: 5,
+          user_id: USER_ID,
+          user_name: USER_NAME,
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || res.statusText);
+      }
+
+      // Capture session_id from first response
+      if (!activeSessionId && data.session_id) {
+        activeSessionId = data.session_id;
+        document.getElementById('chat-title').textContent = query.slice(0, 60);
+      }
+
+      let answerHtml = escHtml(data.answer).replace(/\n/g, '<br>');
+
+      // Replace markers with images from citations
+      if (data.citations && data.citations.length) {
+  data.citations.forEach(cit => {
+    const markerText = escHtml('🖼️' + cit.marker);
+  const imgHtml = cit.image_url ?
+    `<br><img src="${cit.image_url}" alt="${escHtml(cit.image_description || '')}" style="max-width:480px;max-height:280px;object-fit:contain;border-radius:8px;margin:8px 0;border:1px solid var(--border);">` : '';
+  answerHtml = answerHtml.replace(markerText, imgHtml);
+
+  });
+  answerHtml = answerHtml.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+      document.getElementById(pendingId).innerHTML = answerHtml;
+      document.getElementById(pendingId).classList.remove('msg-muted');
+    } catch(e) {
+      document.getElementById(pendingId).textContent = `Error: ${e.message}`;
+      document.getElementById(pendingId).style.color = '#c0392b';
+    }
+
+    btn.disabled = false;
+    c.scrollTop = c.scrollHeight;
+    input.focus();
+  }
+
+async function clearAllHistory() {
+  if (!confirm('Delete ALL chat history for this user?')) return;
+  
+  try {
+    const res = await fetch('/delete_history?user_id=1', { method: 'DELETE' });
+    if (res.ok) {
+      alert('History cleared');
+      loadSessions(); // refresh list
+    } else {
+      alert('Failed to clear');
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+async function deleteSession(sessionId) {
+  if (!confirm('Delete this session?')) return;
+  try {
+    const res = await fetch(`/delete_session/${sessionId}`, { method: 'DELETE' });
+    if (res.ok) {
+      loadSessions();
+    }
+  } catch(e) {}
+}
+  // ── Init ──
+  loadSessions();
+</script>
+</body>
+</html>

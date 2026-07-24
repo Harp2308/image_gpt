@@ -12,7 +12,7 @@ _loguru_logger.remove()
 # Console
 _loguru_logger.add(
     sys.stdout,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}\n{exception}",
     level="INFO",
     colorize=True,
     enqueue=True,
@@ -25,7 +25,7 @@ _loguru_logger.add(
     retention=30,
     encoding="utf-8",
     enqueue=True,  # thread/process safe — single writer queue
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}\n{exception}",
     level="INFO",
 )
 

@@ -178,10 +178,12 @@ Your job:
 5. Every image_id in the list should be assigned to exactly one entry unless
    it is clearly not entry-specific (e.g. a logo or header image) — in that
    case simply omit it from all entries.
-6. Preserve entry text as written in the document (you may lightly clean
-   up whitespace/line-breaks but do not paraphrase or omit content). If an
-   entry has no instruction text (e.g. a legend-only lettered point), leave
-   `entry_text` as an empty string.
+"6. Preserve entry text EXACTLY as written in the document — copy it verbatim "
+   "from the cell. Do NOT merge text from multiple rows or sub-rows into a "
+   "single entry_text. Each visible table row is its own entry. If a cell "
+   "spans multiple rows visually, use only the text in that cell, not the "
+   "text from adjacent rows. Do not paraphrase or omit content. If an entry "
+   "has no instruction text, leave `entry_text` as an empty string."
 7. If the page is a table, use `fields` to capture each row's column data
    (column_name: value) and generate an `entry_id` like "row_1", "row_2" in
    reading order. For non-table entries, leave `fields` as an empty object.
@@ -210,6 +212,9 @@ Write image_description as a structured paragraph covering ALL of the following:
 
 5. TEXT IN IMAGE (if any text is visible inside the image itself, not OCR)
    - Any labels, signs, screen readouts, or button text visible in the photo.
+
+6. Scheduling / sign-off grid images — exclude from image_ids only.
+Some cropped image_ids will contain nothing but a repeating checkbox/sign-off grid — a dense matrix of short Portuguese day or period abbreviations (Sg, Tr, Q1, Q2, St, Sá or similar) with empty checkbox cells beneath them. These are purely administrative completion-tracking sheets. Do not include these image_ids in any entry's image_ids list. You may still reference or describe the grid content in image_description if it is contextually relevant to the entry.
    
 IMPORTANT: All string values in your tool call must use valid JSON escaping.
 Any double-quote character that appears inside a string value must be escaped as \".

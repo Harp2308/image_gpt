@@ -92,47 +92,89 @@ def orchestrator_task(
         update_job_status(job_id, "running")
 
         # ── Mode: sharepoint_folder ────────────────────────────────────────
+        # if mode == "sharepoint_folder":
+        #     sp_client = SharePointClient()
+        #     folder_path: str = payload
+
+        #     try:
+        #         downloaded = sp_client.download_folder(folder_path, local_dir)
+        #     except Exception as exc:
+        #         logger.exception(f"[orchestrator] job={job_id} SP folder download failed: {exc}")
+        #         update_job_status(job_id, "failed")
+        #         if local_dir.exists():
+        #             shutil.rmtree(local_dir, ignore_errors=True)
+        #         return
+
+        #     if not downloaded:
+        #         logger.error(f"[orchestrator] job={job_id} no files downloaded")
+        #         update_job_status(job_id, "failed")
+        #         return
+
+        #     # Account for files that failed to download
+        #     sp_total = len(sp_client.list_xlsx_files(folder_path))
+        #     downloaded_names = {f["name"] for f in downloaded}
+        #     all_names = {f["name"] for f in sp_client.list_xlsx_files(folder_path)}
+
+        #     update_job_status(job_id, "running", total_files=sp_total)
+
+        #     # Pre-mark failed downloads
+        #     for name in (all_names - downloaded_names):
+        #         create_file_record(job_id, name, "")
+        #         update_file_status(job_id, name, "failed", error="SharePoint download failed")
+        #         record_file_failed(job_id)
+
+        #     files = [
+        #         {
+        #             "name": f["name"],
+        #             "local_path": f["local_path"],
+        #             "folder_name": _extract_folder_name(f["sharepoint_path"]),
+        #         }
+        #         for f in downloaded
+        #     ]
+        #     _dispatch_chains(job_id, files)
         if mode == "sharepoint_folder":
             sp_client = SharePointClient()
             folder_path: str = payload
 
             try:
-                downloaded = sp_client.download_folder(folder_path, local_dir)
+                xlsx_files = sp_client.list_xlsx_files(folder_path)
             except Exception as exc:
-                logger.exception(f"[orchestrator] job={job_id} SP folder download failed: {exc}")
-                update_job_status(job_id, "failed")
-                if local_dir.exists():
-                    shutil.rmtree(local_dir, ignore_errors=True)
-                return
-
-            if not downloaded:
-                logger.error(f"[orchestrator] job={job_id} no files downloaded")
+                logger.exception(f"[orchestrator] job={job_id} failed to list folder: {exc}")
                 update_job_status(job_id, "failed")
                 return
 
-            # Account for files that failed to download
-            sp_total = len(sp_client.list_xlsx_files(folder_path))
-            downloaded_names = {f["name"] for f in downloaded}
-            all_names = {f["name"] for f in sp_client.list_xlsx_files(folder_path)}
+            if not xlsx_files:
+                logger.error(f"[orchestrator] job={job_id} no xlsx files found in folder")
+                update_job_status(job_id, "failed")
+                return
 
-            update_job_status(job_id, "running", total_files=sp_total)
+            update_job_status(job_id, "running", total_files=len(xlsx_files))
 
-            # Pre-mark failed downloads
-            for name in (all_names - downloaded_names):
-                create_file_record(job_id, name, "")
-                update_file_status(job_id, name, "failed", error="SharePoint download failed")
-                record_file_failed(job_id)
+            for file_info in xlsx_files:
+                filename = file_info["name"]
+                save_path = local_dir / filename
+                folder_name = _extract_folder_name(f"{folder_path}/{filename}")
 
-            files = [
-                {
-                    "name": f["name"],
-                    "local_path": f["local_path"],
-                    "folder_name": _extract_folder_name(f["sharepoint_path"]),
-                }
-                for f in downloaded
-            ]
-            _dispatch_chains(job_id, files)
+                create_file_record(job_id, filename, folder_name)
 
+                try:
+                    sp_client.download_file(file_info["id"], save_path)
+                except Exception as exc:
+                    logger.exception(f"[orchestrator] job={job_id} failed to download '{filename}': {exc}")
+                    update_file_status(job_id, filename, "failed", error="SharePoint download failed")
+                    record_file_failed(job_id)
+                    continue
+
+                # dispatch immediately — don't wait for other files
+                chain(
+                    ingest_task.si(job_id, str(save_path), filename, folder_name),
+                    index_task.si(job_id, filename, folder_name),
+                    cleanup_task.si(job_id, str(save_path), filename),
+                ).on_error(
+                    cleanup_task.si(job_id, str(save_path), filename, ingestion_failed=True)
+                ).apply_async()
+
+                logger.info(f"[orchestrator] job={job_id} dispatched chain for '{filename}'")
         # ── Mode: sharepoint_files ─────────────────────────────────────────
         elif mode == "sharepoint_files":
             sp_client = SharePointClient()

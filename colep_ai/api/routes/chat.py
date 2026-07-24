@@ -9,7 +9,7 @@ import json
 from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.ai_search_retrieval import retrieve, RetrievalRejected
 from colep_ai.generation.ai_search_generation import generate_from_retrieval
-from colep_ai.generation.prompts.check_query import CHECK_QUERY_SYSTEM_PROMPT
+from colep_ai.generation.prompts.check_query_prompt import CHECK_QUERY_SYSTEM_PROMPT
 from colep_ai.api.dependencies import get_openai, get_claude, get_search
 
 logger = get_logger(__name__)

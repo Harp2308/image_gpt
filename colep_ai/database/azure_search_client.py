@@ -39,6 +39,7 @@ from colep_ai.indexing.embedder import EMBED_DIM
 logger = get_logger(__name__)
 
 INDEX_NAME = "colep-page-based-chunks"
+INDEX_NAME = "colep-page-based-chunks_new"
 # INDEX_NAME = "colep-page-based-chunks_endpoint_test"
 UPSERT_BATCH_SIZE = 50  # Azure max per upload call is 1000, but keep aligned with Qdrant
 
@@ -59,11 +60,15 @@ def get_index_client() -> SearchIndexClient:
 
 
 def get_search_client() -> SearchClient:
+    logger.info(
+                f"Search client initiated |index ={INDEX_NAME} | "  
+              )
     return SearchClient(
         endpoint=settings.AZURE_SEARCH_ENDPOINT,
         index_name=INDEX_NAME,
         credential=_credential(),
     )
+    
 
 
 # ---------------------------------------------------------------------------
@@ -323,3 +328,25 @@ def delete_by_folder_name(client: SearchClient, folder_name: str) -> int:
 
     logger.info(f"Deleted {total_deleted} chunks for folder_name='{folder_name}'")
     return total_deleted
+
+
+def delete_by_source_file(client: SearchClient, source_file: str) -> int:
+    total_deleted = 0
+
+    while True:
+        results = list(client.search(
+            search_text="*",
+            filter=f"source_file eq '{source_file}'",
+            select=["id"],
+            top=1000,
+        ))
+        if not results:
+            break
+
+        batch = [{"id": r["id"]} for r in results]
+        client.delete_documents(documents=batch)
+        total_deleted += len(batch)
+
+    logger.info(f"Deleted {total_deleted} chunks for source_file='{source_file}'")
+    return total_deleted
+

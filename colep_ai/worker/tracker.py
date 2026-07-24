@@ -24,7 +24,7 @@ Design decisions:
 import json
 from datetime import datetime, timezone
 from typing import Literal
-
+import shutil
 import redis
 
 from colep_ai.core.config import settings
@@ -308,5 +308,16 @@ def _increment_and_check(job_id: str, done: bool) -> None:
             f"[tracker] job {job_id} finalized → {final_status} "
             f"(done={current_done} failed={current_failed} total={total})"
         )
+        # Delete UUID downloads folder after all files are processed
+        try:
+            local_dir = settings.downloads_dir(job_id)
+            if local_dir.exists():
+                shutil.rmtree(local_dir, ignore_errors=True)
+                logger.info(f"[tracker] job={job_id} deleted downloads folder: {local_dir}")
+            else:
+                logger.info(f"[tracker] job={job_id} downloads folder already gone: {local_dir}")
+        except Exception:
+            logger.exception(f"[tracker] job={job_id} failed to delete downloads folder")
+            
     except Exception:
         logger.exception(f"[tracker] _increment_and_check failed for {job_id}")

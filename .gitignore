@@ -24,9 +24,7 @@ key.json
 docs
 
 outputs*
-prompts
 
 logs
 models
 documents*
-tests

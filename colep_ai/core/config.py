@@ -89,6 +89,22 @@ class Settings(BaseSettings):
     # Deleted by cleanup_task after successful indexing.
     DOWNLOADS_ROOT: Path = Path("downloads")
 
+    # ------------------------------------------------------------------
+    # Cosmos DB  (conversation history)
+    # ------------------------------------------------------------------
+    COSMOS_URL: str = "https://localhost:8081"          # local emulator default
+    COSMOS_KEY: SecretStr = SecretStr("C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPEdkbWKGMDdk/26Y+2lLbFhw==")  # emulator master key
+    COSMOS_DB_NAME: str = "colep_ai"
+    COSMOS_CONTAINER_NAME: str = "chat_sessions"
+ 
+    # ------------------------------------------------------------------
+    # Session / history tuning
+    # ------------------------------------------------------------------
+    SESSION_TTL_SECONDS: int = 86400        # 24h sliding TTL on Redis keys
+    SESSION_HISTORY_WINDOW: int = 3         # number of full turns kept verbatim
+    SUMMARY_MODEL: str = "gpt-5.1"  # model used for incremental summarisation
+ 
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
