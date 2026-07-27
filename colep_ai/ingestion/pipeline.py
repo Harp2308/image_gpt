@@ -79,7 +79,7 @@ def extract_line_number(stem: str) -> list[int] | None:
 def run_pipeline(
     excel_path: str,
     page_number: int,  # 1-based, interface contract,
-    claude_client: anthropic.Anthropic,
+    claude_client: anthropic.AsyncAnthropic,
     vision_client: vision.ImageAnnotatorClient = None ,
     folder_name: str = "",
 

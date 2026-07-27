@@ -11,11 +11,9 @@ Returns full conversation history for a session:
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from fastapi import APIRouter, Depends, HTTPException
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI,APIConnectionError, APITimeoutError
 from pydantic import BaseModel
 
 from colep_ai.api.dependencies import get_openai, get_cosmos
@@ -47,10 +45,15 @@ class HistoryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Summary generation via GPT-5.1
 # ---------------------------------------------------------------------------
-
-def _generate_summary(
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+    retry=retry_if_exception_type((APIConnectionError, APITimeoutError)),
+    reraise=True,
+)
+async def _generate_summary(
     turns: list[TurnPair],
-    openai_client: AzureOpenAI,
+    openai_client: AsyncAzureOpenAI,
 ) -> str:
     """
     Generates a fresh summary of the full conversation using GPT-5.1.
@@ -64,7 +67,7 @@ def _generate_summary(
         for t in turns
     )
 
-    response = openai_client.chat.completions.create(
+    response = await openai_client.chat.completions.create(
     model="gpt-5.1",
     temperature=0,
     messages=[
@@ -89,7 +92,7 @@ def _generate_summary(
 @router.get("/history/{session_id}", response_model=HistoryResponse)
 async def get_history(
     session_id: str,
-    openai_client: AzureOpenAI = Depends(get_openai),
+    openai_client: AsyncAzureOpenAI = Depends(get_openai),
     cosmos_container=Depends(get_cosmos),
 ):
     # Load full session from MongoDB
@@ -127,9 +130,12 @@ async def get_history(
     # Generate summary via GPT-5.1 if not present
     if not summary.strip() and turn_pairs:
         logger.info(f"No summary found — generating via GPT-5.1 | session_id={session_id}")
-        summary = _generate_summary(turn_pairs, openai_client)
-        # Persist generated summary back to MongoDB
-        await db.update_summary(cosmos_container, session_id, summary)
+        try:
+            summary = await _generate_summary(turn_pairs, openai_client)
+            await db.update_summary(cosmos_container, session_id, summary)
+        except Exception as exc:
+            logger.warning(f"Summary generation failed — returning without summary | session_id={session_id} | error={exc}")
+            summary = ""
 
     return HistoryResponse(
         session_id=session_id,

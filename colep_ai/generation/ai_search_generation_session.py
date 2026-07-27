@@ -37,7 +37,13 @@ logger = get_logger(__name__)
 
 GENERATION_MODEL = settings.ANTHROPIC_MODEL
 
-_RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
+# Correct SDK exceptions for transient network failures.
+# RateLimitError is intentionally excluded — handled separately below,
+# not retried blindly (window is 60s, blind retries won't help).
+_RETRYABLE_EXCEPTIONS = (
+    anthropic.APIConnectionError,
+    anthropic.APITimeoutError,
+)
 
 # Matches exactly the marker format the LLM is instructed to emit.
 _IMAGE_MARKER_PATTERN = re.compile(r"🖼️\[page\s+(\d+)\s*\|\s*entry\s+(\d+)\]")
@@ -227,8 +233,8 @@ def _answer_language_for(language: str) -> str:
     retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
     reraise=True,
 )
-def generate_answer(
-    claude_client: anthropic.Anthropic,
+async def generate_answer(
+    claude_client: anthropic.AsyncAnthropic,
     query: str,
     context: str,
     language: str,
@@ -236,10 +242,9 @@ def generate_answer(
     history_messages: list[dict] | None = None,
 ) -> str:
     """
-    history_messages: pre-built Claude messages list from
-    conversation.history.build_history_messages(). Contains the
-    running summary (as a synthetic exchange) + last N verbatim turns.
-    If None or empty, behaves exactly as before (stateless).
+    Calls Claude async. Retries on connection/timeout errors only.
+    RateLimitError is caught here and re-raised as-is — the route
+    handler catches it and returns a clean 503.
     """
     answer_language = _answer_language_for(language)
     system_prompt = _ANSWER_SYSTEM_PROMPT.format(answer_language=answer_language)
@@ -258,13 +263,19 @@ def generate_answer(
         "content": f"Context:\n{context}\n\nQuestion: {query}",
     })
 
-    resp = claude_client.messages.create(
-        model=model,
-        max_tokens=6000,
-        system=system_prompt,
-        messages=messages,
-        temperature=0,
-    )
+    try:
+        resp = await claude_client.messages.create(
+            model=model,
+            max_tokens=6000,
+            system=system_prompt,
+            messages=messages,
+            temperature=0,
+        )
+    except anthropic.RateLimitError as exc:
+        # Do not retry — window is 60s, retrying immediately won't help.
+        # Re-raise so the route handler can surface a clean 503.
+        logger.warning(f"Anthropic rate limit hit | {exc}")
+        raise
 
     usage = resp.usage
     logger.info(
@@ -325,8 +336,8 @@ def strip_image_markers(answer: str) -> str:
 # Public entrypoint
 # ---------------------------------------------------------------------------
 
-def generate_from_retrieval(
-    claude_client: anthropic.Anthropic,
+async def generate_from_retrieval(
+    claude_client: anthropic.AsyncAnthropic,
     query: str,
     retrieval_response: RetrievalResponse,
     model: str = GENERATION_MODEL,
@@ -348,7 +359,7 @@ def generate_from_retrieval(
         retrieval_response.results, retrieval_response.language
     )
 
-    answer = generate_answer(
+    answer = await generate_answer(
         claude_client,
         query,
         context,

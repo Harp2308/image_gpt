@@ -36,12 +36,12 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/static", StaticFiles(directory="colep_ai/frontend"), name="static")
 
 @app.on_event("startup")
-def _init_clients():
+async def _init_clients():
     deps.openai_client = get_openai_client()  # ← just use the same factory as indexing
     deps.claude_client = get_claude_client() 
     ensure_page_index(get_index_client())   # ensure index exists before search client is used
     deps.search_client = get_search_client()
-    ensure_cosmos_resources()
+    await ensure_cosmos_resources()
     logger.info("Clients initialized")
 
 

@@ -174,7 +174,7 @@ def _answer_language_for(language: str) -> str:
     reraise=True,
 )
 def generate_answer(
-    claude_client: anthropic.Anthropic,
+    claude_client: anthropic.AsyncAnthropic,
     query: str,
     context: str,
     language: str,
@@ -288,7 +288,7 @@ def strip_image_markers(answer: str) -> str:
 
 
 def generate_from_retrieval(
-    claude_client: anthropic.Anthropic,
+    claude_client: anthropic.AsyncAnthropic,
     query: str,
     retrieval_response: RetrievalResponse,
     model: str = GENERATION_MODEL,

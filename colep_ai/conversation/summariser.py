@@ -23,13 +23,9 @@ Design decisions
 
 from __future__ import annotations
 
-import asyncio
-
-import anthropic
-
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 logger = get_logger(__name__)
 
 _SUMMARY_SYSTEM_PROMPT = """\
@@ -71,8 +67,8 @@ def _build_summary_prompt(
     return "\n\n".join(parts)
 
 
-def _call_summariser_sync(
-     openai_client: AzureOpenAI,
+async def _call_summariser(
+     openai_client: AsyncAzureOpenAI,
     existing_summary: str,
     user_message: str,
     assistant_message: str,
@@ -83,21 +79,33 @@ def _call_summariser_sync(
     """
     prompt = _build_summary_prompt(existing_summary, user_message, assistant_message)
 
-    resp = openai_client.chat.completions.create(
-        model=settings.SUMMARY_MODEL,
-        max_tokens=300,         # summaries are short by design
-        system=_SUMMARY_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-    )
-
+    resp = await openai_client.chat.completions.create(
+    model=settings.SUMMARY_MODEL,
+    max_completion_tokens=3000,
+    temperature=0,
+    messages=[
+        {
+            "role": "system",
+            "content": _SUMMARY_SYSTEM_PROMPT,
+        },
+        {
+            "role": "user",
+            "content": prompt,
+        },
+    ],
+)
     updated = resp.choices[0].message.content.strip()
-    logger.debug(f"Summary updated | tokens_out={resp.usage.output_tokens}")
+    logger.debug(
+    f"Summary updated | "
+    f"prompt_tokens={resp.usage.prompt_tokens}, "
+    f"completion_tokens={resp.usage.completion_tokens}, "
+    f"total_tokens={resp.usage.total_tokens}"
+)
     return updated
 
 
 async def update_summary_incremental(
-     openai_client: AzureOpenAI,
+     openai_client: AsyncAzureOpenAI,
     existing_summary: str,
     user_message: str,
     assistant_message: str,
@@ -107,8 +115,7 @@ async def update_summary_incremental(
     Returns updated summary, or existing_summary on failure.
     """
     try:
-        updated = await asyncio.to_thread(
-            _call_summariser_sync,
+        updated = await _call_summariser(
             openai_client,
             existing_summary,
             user_message,

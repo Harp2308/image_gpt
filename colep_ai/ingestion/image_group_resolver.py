@@ -229,7 +229,7 @@ Call the `record_step_image_mapping` tool with your final structured answer.
 def extract_steps(
     full_page_image_path: str,
     image_meta: list[dict],
-    client:anthropic.Anthropic,
+    client:anthropic.AsyncAnthropic,
     api_key: str | None = None,
 ) -> dict:
    

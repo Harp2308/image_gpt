@@ -99,7 +99,7 @@ def load_image_b64(image_path: Path | str) -> tuple[str, str]:
     return data, media_type
  
  
-def extract_flowchart(image_path: Path | str, client: anthropic.Anthropic) -> dict:
+def extract_flowchart(image_path: Path | str, client: anthropic.AsyncAnthropic) -> dict:
     """Send image to Sonnet and return parsed JSON."""
     b64_data, media_type = load_image_b64(image_path)
  

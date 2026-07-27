@@ -10,12 +10,12 @@ import json
 import re
 import time
 from dataclasses import dataclass
-
+import asyncio
 from azure.core.exceptions import HttpResponseError
 from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizedQuery
 from lingua import Language, LanguageDetectorBuilder
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from colep_ai.core.logger import get_logger
@@ -108,13 +108,14 @@ def _build_odata_filter(line_number: int | None) -> str | None:
     retry=retry_if_exception_type((ConnectionError, TimeoutError, OSError)),
     reraise=True,
 )
-def _embed(client: AzureOpenAI, text: str) -> list[float]:
-    resp = client.embeddings.create(model=settings.EMBED_MODEL, input=[text])
+async def _embed(client: AsyncAzureOpenAI, text: str) -> list[float]:
+    resp = await client.embeddings.create(model=settings.EMBED_MODEL, input=[text])
     return resp.data[0].embedding
 
 
 # ---------------------------------------------------------------------------
-# Azure hybrid search
+# Azure hybrid search — stays sync (no async Azure Search SDK)
+# Offloaded to executor in retrieve() below.
 # ---------------------------------------------------------------------------
 
 @retry(
@@ -200,18 +201,21 @@ def _safe_json_loads(value: str | list | dict | None) -> list | dict:
 
 
 # ---------------------------------------------------------------------------
-# Public entrypoint
+# Public entrypoint — async
 # ---------------------------------------------------------------------------
 
-def retrieve(
+async def retrieve(
     query: str,
-    openai_client: AzureOpenAI | None = None,
+    openai_client: AsyncAzureOpenAI | None = None,
     search_client: SearchClient | None = None,
     top_k: int = _TOP_K,
 ) -> RetrievalResponse | RetrievalRejected:
     """
     Returns RetrievalResponse on success.
     Returns RetrievalRejected if language is unsupported or no results pass threshold.
+     _embed is async — awaited directly.
+    _hybrid_search is sync (no async Azure Search SDK) — offloaded to the
+    default executor so it doesn't block the event loop.
     """
     if openai_client is None:
         openai_client = get_openai_client()
@@ -222,35 +226,35 @@ def retrieve(
     language = _detect_language(query)
     if language == "other":
         logger.warning(f"Unsupported language detected for query: '{query[:60]}'")
-        return RetrievalRejected(
-            reason="Please query in Portuguese or English."
-        )
+        return RetrievalRejected(reason="Please query in Portuguese or English.")
 
     # Step 2 — line number filter
     line_number = _extract_line_number(query)
     odata_filter = _build_odata_filter(line_number)
 
-    # Step 3 — embed
+    # Step 3 — embed (async, awaited directly)
     embed_start = time.time()
-    query_vector = _embed(openai_client, query)
-    embed_time = time.time() - embed_start
-    logger.info(f"Embedding generation took {embed_time:.3f}s")
+    query_vector = await _embed(openai_client, query)
+    logger.info(f"Embedding generation took {time.time() - embed_start:.3f}s")
     
-    # Step 4 — hybrid search
+    # Step 4 — hybrid search (sync SDK, offloaded to executor)
     search_start = time.time()
     text_field, vector_field = _LANG_FIELD_MAP[language]
+    loop = asyncio.get_running_loop()
 
-    results = _hybrid_search(
-        search_client=search_client,
-        query_text=query,
-        query_vector=query_vector,
-        text_field=text_field,
-        vector_field=vector_field,
-        odata_filter=odata_filter,
-        top_k=top_k,
+    results = await loop.run_in_executor(
+        None,
+        lambda: _hybrid_search(
+            search_client=search_client,
+            query_text=query,
+            query_vector=query_vector,
+            text_field=text_field,
+            vector_field=vector_field,
+            odata_filter=odata_filter,
+            top_k=top_k,
+        ),
     )
-    search_time = time.time() - search_start
-    logger.info(f"Retrieval took {search_time:.3f}s")
+    logger.info(f"Retrieval took {time.time() - search_start:.3f}s")
 
     # Step 5 — no results
     if not results:

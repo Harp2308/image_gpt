@@ -1,12 +1,12 @@
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 from colep_ai.core.logger import get_logger
 from colep_ai.core.config import settings
 
 
 logger = get_logger(__name__)
 
-def get_openai_client() -> AzureOpenAI:
-    client = AzureOpenAI(
+def get_openai_client() -> AsyncAzureOpenAI:
+    client = AsyncAzureOpenAI(
     azure_endpoint=settings.OPENAI_ENDPOINT.get_secret_value(),
     api_key=settings.OPENAI_API_KEY.get_secret_value(),
     api_version="2025-04-01-preview",
@@ -17,7 +17,7 @@ def get_openai_client() -> AzureOpenAI:
     # return OpenAI(api_key=settings.OPENAI_API_KEY.get_secret_value())  # reads OPENAI_API_KEY from env
 
 # can handle empty strings
-def embed_texts(client: AzureOpenAI, texts: list[str]) -> list[list[float]]:
+def embed_texts(client: AsyncAzureOpenAI, texts: list[str]) -> list[list[float]]:
     vectors = []
     for i in range(0, len(texts), settings.BATCH_SIZE):
         batch = []
@@ -31,7 +31,7 @@ def embed_texts(client: AzureOpenAI, texts: list[str]) -> list[list[float]]:
         vectors.extend([d.embedding for d in resp.data])
     return vectors
 
-# def embed_texts(client: AzureOpenAI, texts: list[str]) -> list[list[float]]:
+# def embed_texts(client: AsyncAzureOpenAI, texts: list[str]) -> list[list[float]]:
 #     vectors = []
 #     for i in range(0, len(texts), BATCH_SIZE):
 #         batch = texts[i:i + BATCH_SIZE]
