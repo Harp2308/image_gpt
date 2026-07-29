@@ -13,8 +13,6 @@ class Settings(BaseSettings):
     # Paths
     # ------------------------------------------------------------------
     OUTPUT_ROOT: Path = Path("outputs")
-    GCP_VISION_KEY_PATH: Path = Path("key.json")
-
     # ------------------------------------------------------------------
     # Anthropic
     # ------------------------------------------------------------------
@@ -52,6 +50,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     AZURE_SEARCH_ENDPOINT: str = ""
     AZURE_SEARCH_API_KEY: SecretStr = SecretStr("")
+    INDEX_NAME :str =""
 
     # ------------------------------------------------------------------
     # Redis

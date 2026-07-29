@@ -110,7 +110,7 @@ def run_page_indexing(source_file: str, openai_client=None,folder_name: str = ""
     logger.info("All embeddings done")
 
     # Ensure index exists (idempotent)
-    ensure_page_index(get_index_client())
+    # ensure_page_index(get_index_client())
 
     search_client = get_search_client()
     failed = upsert_page_chunks(search_client, chunks, vectors_pt, vectors_en, vectors_img)

@@ -28,6 +28,12 @@ from kombu import Exchange, Queue
 from colep_ai.core.config import settings
 import colep_ai.worker.worker_heartbeat  
 
+from celery.signals import worker_ready
+
+@worker_ready.connect
+def on_worker_ready(sender, **kwargs):
+    from colep_ai.database.azure_search_client import ensure_page_index, get_index_client
+    ensure_page_index(get_index_client())
 # ---------------------------------------------------------------------------
 # Queue and exchange definitions
 # ---------------------------------------------------------------------------

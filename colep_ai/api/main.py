@@ -47,7 +47,6 @@ async def _init_clients():
 
 # Register routers
 app.include_router(chat_router)
-app.include_router(ingest_router)
 app.include_router(history_router)
 app.include_router(sessions_router)
 

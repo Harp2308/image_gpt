@@ -9,14 +9,13 @@ import anthropic
 from colep_ai.core.config import settings
 from colep_ai.ingestion.ocr_extractor import get_vision_client
 from colep_ai.ingestion.pipeline import run_pipeline,get_total_pages
-from colep_ai.generation.claude_client import get_claude_client
+from colep_ai.generation.claude_client import get_claude_client_sync
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def main(excel_path:str):
-    vision_client = get_vision_client(str(settings.GOOGLE_APPLICATION_CREDENTIALS))
-    claude_client = get_claude_client()
+    claude_client = get_claude_client_sync()
     total_pages = get_total_pages(excel_path)
 
     for page in range(1, total_pages + 1):
@@ -24,7 +23,6 @@ def main(excel_path:str):
             run_pipeline(
                 excel_path=excel_path,
                 page_number=page,
-                vision_client=vision_client,
                 claude_client=claude_client,
                 folder_name="flowchart"
             )
@@ -36,13 +34,17 @@ def main(excel_path:str):
 if __name__ == "__main__":    
     # main(r"docs\e1.xlsx")
     from pathlib import Path
+    import openpyxl
 
     DOCS_DIR = Path(r"documents")
     excel_files = list(DOCS_DIR.glob("*.xlsx"))
 
-    for excel_file in excel_files[:1]:
+    for excel_file in excel_files:
         try:
             logger.info(f"Processing: {excel_file.name}")
+            # wb = openpyxl.load_workbook(excel_file, data_only=True)
+            # for ws in wb.worksheets:
+            #     print(ws.title, ws.print_area, ws.dimensions)
             main(str(excel_file))
         except Exception as e:
             logger.warning(f"❌ Failed: {excel_file.name}")

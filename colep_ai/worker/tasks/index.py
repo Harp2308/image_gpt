@@ -20,7 +20,7 @@ from pathlib import Path
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
 from colep_ai.indexing.azure_page_pipeline import run_page_indexing
-from colep_ai.indexing.embedder import get_openai_client
+from colep_ai.indexing.embedder import get_openai_client_sync
 from colep_ai.ingestion.utils import normalize_filename
 from colep_ai.worker.celery_app import celery_app
 from colep_ai.worker.tracker import update_file_status
@@ -80,7 +80,7 @@ def index_task(self, job_id: str, filename: str, folder_name: str = "") -> None:
             f"indexing {len(result_files)} page result(s) from {results_dir}"
         )
 
-        openai_client = get_openai_client()
+        openai_client = get_openai_client_sync()
         run_page_indexing(str(results_dir), openai_client, folder_name=folder_name)
 
         update_file_status(job_id, filename, "indexing_done")

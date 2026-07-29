@@ -10,3 +10,10 @@ def get_claude_client() -> AsyncAnthropic:
     api_key=settings.ANTHROPIC_API_KEY.get_secret_value(),
     base_url=settings.ANTHROPIC_ENDPOINT.get_secret_value().replace("/v1/messages", ""),)
     return client
+
+import anthropic
+
+def get_claude_client_sync() -> anthropic.Anthropic:
+    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY.get_secret_value(),
+        base_url=settings.ANTHROPIC_ENDPOINT.get_secret_value().replace("/v1/messages", ""),)
+    

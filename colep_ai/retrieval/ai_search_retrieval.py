@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 _TOP_K = 5
 _SCORE_THRESHOLD = 0.0           # DEBUG: disabled — tune after confirming recall
 _LANG_CONFIDENCE_THRESHOLD = 0.65
-_LINE_RE = re.compile(r"\b(?:linha|line|linea|l)\s*(\d+)\b", re.IGNORECASE)
+_LINE_RE = re.compile(r"\b(?:linha|line|linea|l)(?:\s+(?:number|no\.?|num\.?))?\s*(\d+)\b", re.IGNORECASE)
 
 _LANGUAGE_DETECTOR = (
     LanguageDetectorBuilder.from_languages(Language.ENGLISH, Language.PORTUGUESE).build()

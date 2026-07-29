@@ -37,7 +37,7 @@ import pythoncom
 
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
-from colep_ai.generation.claude_client import get_claude_client
+from colep_ai.generation.claude_client import get_claude_client_sync
 from colep_ai.ingestion.pipeline import get_total_pages, run_pipeline, _ensure_pdf, _ensure_page_image
 from colep_ai.ingestion.utils import normalize_filename
 from colep_ai.worker.celery_app import celery_app
@@ -170,7 +170,7 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
         # ── Stage 3: Per-page processing (parallel) ────────────────────────
         # Claude client is thread-safe — one instance shared across threads.
         # win32com is NOT used past this point — safe to thread.
-        claude_client = get_claude_client()
+        claude_client = get_claude_client_sync()
 
         failed_pages: list[int] = []
         succeeded_pages: list[int] = []

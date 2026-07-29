@@ -16,6 +16,17 @@ def get_openai_client() -> AsyncAzureOpenAI:
     return client
     # return OpenAI(api_key=settings.OPENAI_API_KEY.get_secret_value())  # reads OPENAI_API_KEY from env
 
+from openai import AzureOpenAI  # not Async
+
+def get_openai_client_sync() -> AzureOpenAI:
+    return AzureOpenAI(
+        azure_endpoint=settings.OPENAI_ENDPOINT.get_secret_value(),
+        api_key=settings.OPENAI_API_KEY.get_secret_value(),
+        api_version="2025-04-01-preview",
+        timeout=15.0,
+        max_retries=5,
+    )
+
 # can handle empty strings
 def embed_texts(client: AsyncAzureOpenAI, texts: list[str]) -> list[list[float]]:
     vectors = []

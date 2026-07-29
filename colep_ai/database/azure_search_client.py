@@ -37,9 +37,7 @@ from colep_ai.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-INDEX_NAME = "colep-page-based-chunks"
-INDEX_NAME = "colep-page-based-chunks_new"
-# INDEX_NAME = "colep-page-based-chunks_endpoint_test"
+INDEX_NAME = settings.INDEX_NAME
 UPSERT_BATCH_SIZE = 50  # Azure max per upload call is 1000, but keep aligned with Qdrant
 
 
@@ -215,17 +213,16 @@ def _build_index() -> SearchIndex:
 # Ensure index (idempotent)
 # ---------------------------------------------------------------------------
 
+from azure.core.exceptions import ResourceExistsError
+
 def ensure_page_index(client: SearchIndexClient | None = None) -> None:
     if client is None:
         client = get_index_client()
-
-    existing = {idx.name for idx in client.list_indexes()}
-    if INDEX_NAME not in existing:
-        client.create_index(_build_index())
-        logger.info(f"Created Azure Search index: {INDEX_NAME}")
-    else:
-        logger.info(f"Index already exists: {INDEX_NAME}")
-
+    try:
+        client.create_or_update_index(_build_index())
+        logger.info(f"Index ensured: {INDEX_NAME}")
+    except ResourceExistsError:
+        logger.info(f"Index already exists or concurrent creation in progress — skipping: {INDEX_NAME}")
 
 # ---------------------------------------------------------------------------
 # Upsert — same signature as qdrant_page_client.upsert_page_chunks()

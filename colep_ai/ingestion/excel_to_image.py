@@ -62,8 +62,10 @@ def normalize_sheet_pagination(wb, logger) -> dict:
     """
     report = {}
     for ws in wb.Worksheets:
-        ps = ws.PageSetup
 
+        ps = ws.PageSetup
+        ws.Calculate()
+        _ = ps.Pages.Count
         fit_to_page_already_set = (ps.Zoom is False)
         has_manual_breaks = _has_manual_page_breaks(ws)
 

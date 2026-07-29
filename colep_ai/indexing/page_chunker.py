@@ -21,8 +21,11 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
     flowchart = data.get("flowchart", {})
     nodes = flowchart.get("nodes", [])
 
-    text_pt_parts = []
-    text_en_parts = []
+    document_code = data.get("document_code", "")
+    document_title = data.get("document_title", "").strip()
+
+    text_pt_parts = [document_title] if document_title else []
+    text_en_parts = [document_title] if document_title else []
     image_desc_parts = []
 
     for entry in entries:
@@ -48,8 +51,9 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
         if img:
             image_desc_parts.append(img)
 
+    has_entry_text = bool(text_pt_parts) or bool(text_en_parts)  # check AFTER entry loop, BEFORE flowchart fallback
     # flowchart fallback — only when no entry text found
-    if nodes and not text_pt_parts and not text_en_parts:
+    if nodes and not has_entry_text:
         pt_desc = flowchart.get("flow_chart_description", "").strip()
         en_desc = flowchart.get("flow_chart_description_en", "").strip()
         if pt_desc:
@@ -64,7 +68,7 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             text_pt_parts.append(node_labels)
             text_en_parts.append(node_labels)
 
-    if not text_pt_parts and not text_en_parts and not image_desc_parts:
+    if not has_entry_text and not image_desc_parts:
         pt_desc = flowchart.get("flow_chart_description", "").strip()
         en_desc = flowchart.get("flow_chart_description_en", "").strip()
         if pt_desc:
@@ -82,11 +86,11 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
                 text_en_parts.append(node_labels)
                 logger.info(f"Flowchart node labels appended for {source_file} page {page_number}: {len(nodes)} nodes")
 
-    document_code = data.get("document_code", "")
-    document_title = data.get("document_title", "")
 
     # line_number: always store as JSON string — list[int] or "" both serialise cleanly
     line_number = data.get("line_number") or []
+
+    logger.info(f"FOLDER NAME : {data.get("folder_name", ""),}")
 
     return {
         "id": _page_point_id(document_code, document_title, source_file, page_number),
@@ -96,6 +100,7 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
         "payload": {
             "source_file": source_file,
             "page_number": page_number,
+            "folder_name": data.get("folder_name", ""),
             "document_title": document_title,
             "document_code": document_code,
             "line_number": line_number,            # list[int] e.g. [28,34,95] or []
