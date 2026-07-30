@@ -30,7 +30,7 @@ from tenacity import (
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
 from colep_ai.retrieval.ai_search_retrieval import RetrievalResponse
-from colep_ai.utils.query_log import log_query
+# from colep_ai.utils.query_log import log_query
 from colep_ai.generation.prompts.answer_generation_prompt import _ANSWER_SYSTEM_PROMPT
 
 logger = get_logger(__name__)
@@ -373,17 +373,18 @@ async def generate_from_retrieval(
 
     citations = extract_citations(answer, entry_lookup)
 
-    log_query(
-        question=query,
-        language=retrieval_response.language,
-        model=model,
-        context=context,
-        answer=answer,
-    )
+    # log_query(
+    #     question=query,
+    #     language=retrieval_response.language,
+    #     model=model,
+    #     context=context,
+    #     answer=answer,
+    # )
 
     return {
         "answer": answer,
         "citations": citations,
         "language": retrieval_response.language,
         "results": retrieval_response.results,
+        "context": context, 
     }

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Colep AI — Query Logs</title>
+<style>
+  /* ---- Tokens ---- */
+  :root {
+    --purple-50:  #f5f3ff;
+    --purple-100: #ede9fe;
+    --purple-200: #ddd6fe;
+    --purple-300: #c4b5fd;
+    --purple-400: #a78bfa;
+    --purple-500: #8b5cf6;
+    --purple-600: #7c3aed;
+    --purple-700: #6d28d9;
+
+    --bg:         #f7f5ff;
+    --surface:    #ffffff;
+    --surface2:   #f0ecff;
+    --border:     #e4deff;
+    --text:       #1e1b2e;
+    --text-muted: #6b6487;
+    --accent:     #7c3aed;
+    --accent-soft:#ede9fe;
+
+    --radius: 10px;
+    --shadow: 0 1px 4px rgba(109,40,217,0.08);
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  [data-theme="dark"] {
+    --bg:         #13111e;
+    --surface:    #1e1a2e;
+    --surface2:   #271f3d;
+    --border:     #2e2550;
+    --text:       #f0ecff;
+    --text-muted: #9d93c0;
+    --accent:     #a78bfa;
+    --accent-soft:#2e1f5e;
+    --shadow: 0 1px 6px rgba(0,0,0,0.4);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ---- Layout ---- */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+
+  .logo {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+  }
+
+  .logo span {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 6px;
+  }
+
+  .theme-toggle {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+  .main { max-width: 1280px; margin: 0 auto; padding: 24px 24px 60px; }
+
+  /* ---- Stats bar ---- */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  /* ---- Filters ---- */
+  .filters {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .filters input, .filters select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 11px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .filters input:focus, .filters select:focus { border-color: var(--accent); }
+  .filters input { flex: 1; min-width: 180px; }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    font-family: var(--font);
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* ---- Table ---- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  thead tr {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: var(--accent-soft); }
+
+  .td-question {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .td-answer {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .badge-retrieval    { background: #dbeafe; color: #1d4ed8; }
+  .badge-greeting     { background: #dcfce7; color: #15803d; }
+  .badge-malicious    { background: #fee2e2; color: #b91c1c; }
+  .badge-conversation_summary { background: #fef9c3; color: #a16207; }
+
+  [data-theme="dark"] .badge-retrieval    { background: #1e3a5f; color: #93c5fd; }
+  [data-theme="dark"] .badge-greeting     { background: #14352a; color: #86efac; }
+  [data-theme="dark"] .badge-malicious    { background: #3b1a1a; color: #fca5a5; }
+  [data-theme="dark"] .badge-conversation_summary { background: #3b2f00; color: #fde68a; }
+
+  .badge-internal { background: #ede9fe; color: #6d28d9; }
+  .badge-external { background: #fef3c7; color: #92400e; }
+  .badge-unknown  { background: #f3f4f6; color: #6b7280; }
+  [data-theme="dark"] .badge-internal { background: #2e1f5e; color: #c4b5fd; }
+  [data-theme="dark"] .badge-external { background: #3b2500; color: #fcd34d; }
+  [data-theme="dark"] .badge-unknown  { background: #1f2937; color: #9ca3af; }
+
+  .feedback-up   { color: #16a34a; font-weight: 700; }
+  .feedback-down { color: #dc2626; font-weight: 700; }
+  .feedback-none { color: var(--text-muted); }
+
+  /* ---- Pagination ---- */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* ---- Empty / Loading ---- */
+  .empty {
+    padding: 48px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- Modal ---- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 16px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 760px;
+    box-shadow: 0 8px 40px rgba(109,40,217,0.18);
+    position: relative;
+  }
+
+  .modal-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-title { font-size: 15px; font-weight: 700; }
+
+  .modal-close {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: var(--font);
+  }
+  .modal-close:hover { color: var(--accent); border-color: var(--accent); }
+
+  .modal-body { padding: 20px 22px; }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+    margin-bottom: 18px;
+  }
+
+  .meta-item { font-size: 13px; }
+  .meta-key {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .meta-val { color: var(--text); word-break: break-all; }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .content-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+
+  /* Collapsible context */
+  .collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    transition: background 0.15s;
+  }
+  .collapsible-header:hover { background: var(--accent-soft); }
+
+  .collapsible-header .chev {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  .collapsible-header.expanded .chev { transform: rotate(180deg); }
+
+  .collapsible-body {
+    display: none;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-muted);
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 14px;
+  }
+  .collapsible-body.open { display: block; }
+
+  .feedback-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+  }
+
+  .feedback-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .feedback-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .feedback-btn.active-up   { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+  .feedback-btn.active-down { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+
+  [data-theme="dark"] .feedback-btn.active-up   { background: #14352a; border-color: #16a34a; color: #86efac; }
+  [data-theme="dark"] .feedback-btn.active-down { background: #3b1a1a; border-color: #dc2626; color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">Colep AI <span>Query Logs</span></div>
+  </div>
+  <button class="theme-toggle" id="themeToggle">Dark mode</button>
+</div>
+
+<div class="main">
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-label">Total logs</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Thumbs up</div><div class="stat-value" id="s-up">—</div></div>
+    <div class="stat-card"><div class="stat-label">Thumbs down</div><div class="stat-value" id="s-down">—</div></div>
+    <div class="stat-card"><div class="stat-label">Unique IPs</div><div class="stat-value" id="s-ips">—</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="Search question..." />
+    <input type="text" id="ipInput" placeholder="Filter by IP..." style="max-width:160px" />
+    <select id="intentSelect">
+      <option value="">All intents</option>
+      <option value="retrieval">Retrieval</option>
+      <option value="greeting">Greeting</option>
+      <option value="malicious">Malicious</option>
+      <option value="conversation_summary">Summary</option>
+    </select>
+    <select id="ipTypeSelect">
+      <option value="">All IP types</option>
+      <option value="internal">Internal</option>
+      <option value="external">External</option>
+    </select>
+    <select id="feedbackSelect">
+      <option value="">All feedback</option>
+      <option value="up">Thumbs up</option>
+      <option value="down">Thumbs down</option>
+      <option value="none">No feedback</option>
+    </select>
+    <button class="btn" id="applyBtn">Apply</button>
+    <button class="btn btn-ghost" id="resetBtn">Reset</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Time</th>
+          <th>IP</th>
+          <th>IP Type</th>
+          <th>Question</th>
+          <th>Answer</th>
+          <th>Intent</th>
+          <th>Lang</th>
+          <th>Feedback</th>
+        </tr>
+      </thead>
+      <tbody id="logsBody">
+        <tr><td colspan="8" class="empty"><span class="spinner"></span>Loading...</td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Log detail</div>
+      <button class="modal-close" id="modalClose">Close</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="empty"><span class="spinner"></span>Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';   // same origin
+let currentPage = 0;
+const PAGE_SIZE  = 50;
+let activeFilters = {};
+let totalCount = 0;
+
+// ---- Theme ----
+const root = document.documentElement;
+const themeBtn = document.getElementById('themeToggle');
+let dark = false;
+
+themeBtn.addEventListener('click', () => {
+  dark = !dark;
+  root.setAttribute('data-theme', dark ? 'dark' : '');
+  themeBtn.textContent = dark ? 'Light mode' : 'Dark mode';
+});
+
+// ---- Helpers ----
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
+}
+
+function intentBadge(intent) {
+  return `<span class="badge badge-${intent}">${intent}</span>`;
+}
+
+function ipTypeBadge(ipType) {
+  const t = ipType || 'unknown';
+  return `<span class="badge badge-${t}">${t}</span>`;
+}
+
+function feedbackDisplay(fb) {
+  if (fb === 'up')   return '<span class="feedback-up">Up</span>';
+  if (fb === 'down') return '<span class="feedback-down">Down</span>';
+  return '<span class="feedback-none">—</span>';
+}
+
+function truncate(str, n) {
+  if (!str) return '—';
+  return str.length > n ? str.slice(0, n) + '…' : str;
+}
+
+// ---- Stats ----
+async function loadStats() {
+  try {
+    const r = await fetch(`${API}/admin/stats`);
+    const d = await r.json();
+    document.getElementById('s-total').textContent = d.total_logs ?? '—';
+    document.getElementById('s-up').textContent    = d.thumbs_up  ?? '—';
+    document.getElementById('s-down').textContent  = d.thumbs_down ?? '—';
+    document.getElementById('s-ips').textContent   = d.unique_ips  ?? '—';
+  } catch(e) { console.error('Stats fetch failed', e); }
+}
+
+// ---- Logs ----
+async function loadLogs(page = 0, filters = {}) {
+  const body = document.getElementById('logsBody');
+  body.innerHTML = `<tr><td colspan="9" class="empty"><span class="spinner"></span>Loading...</td></tr>`;
+
+  const params = new URLSearchParams();
+  params.set('limit', PAGE_SIZE);
+  params.set('offset', page * PAGE_SIZE);
+  if (filters.search)   params.set('search', filters.search);
+  if (filters.ip)       params.set('ip', filters.ip);
+  if (filters.intent)   params.set('intent', filters.intent);
+  if (filters.ip_type)  params.set('ip_type', filters.ip_type);
+  if (filters.feedback) params.set('feedback', filters.feedback);
+
+  try {
+    const r = await fetch(`${API}/admin/logs?${params}`);
+    const logs = await r.json();
+
+    if (!logs.length) {
+      body.innerHTML = `<tr><td colspan="9" class="empty">No logs found.</td></tr>`;
+      renderPagination(page, 0);
+      return;
+    }
+
+    body.innerHTML = logs.map((log, i) => `
+      <tr data-id="${log.id}" data-session="${log.session_id}">
+        <td style="color:var(--text-muted);font-size:12px">${page * PAGE_SIZE + i + 1}</td>
+        <td style="white-space:nowrap;font-size:12px">${fmtTime(log.timestamp)}</td>
+        <td style="font-size:12px;font-family:monospace">${log.ip || '—'}</td>
+        <td>${ipTypeBadge(log.ip_type)}</td>
+        <td class="td-question">${log.question || '—'}</td>
+        <td class="td-answer">${truncate(log.answer, 80)}</td>
+        <td>${intentBadge(log.intent)}</td>
+        <td style="font-size:12px">${log.language || '—'}</td>
+        <td>${feedbackDisplay(log.feedback)}</td>
+      </tr>
+    `).join('');
+
+    // Row click
+    body.querySelectorAll('tr').forEach(row => {
+      row.addEventListener('click', () => openModal(row.dataset.id, row.dataset.session));
+    });
+
+    renderPagination(page, logs.length);
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="9" class="empty">Failed to load logs.</td></tr>`;
+  }
+}
+
+// ---- Pagination ----
+function renderPagination(page, count) {
+  const pag = document.getElementById('pagination');
+  const hasNext = count === PAGE_SIZE;
+  const hasPrev = page > 0;
+
+  pag.innerHTML = `
+    <button class="btn btn-ghost" ${!hasPrev ? 'disabled' : ''} id="prevBtn">Prev</button>
+    <span>Page ${page + 1}</span>
+    <button class="btn btn-ghost" ${!hasNext ? 'disabled' : ''} id="nextBtn">Next</button>
+  `;
+
+  if (hasPrev) pag.querySelector('#prevBtn').addEventListener('click', () => {
+    currentPage--; loadLogs(currentPage, activeFilters);
+  });
+  if (hasNext) pag.querySelector('#nextBtn').addEventListener('click', () => {
+    currentPage++; loadLogs(currentPage, activeFilters);
+  });
+}
+
+// ---- Filters ----
+document.getElementById('applyBtn').addEventListener('click', () => {
+  activeFilters = {
+    search:   document.getElementById('searchInput').value.trim(),
+    ip:       document.getElementById('ipInput').value.trim(),
+    intent:   document.getElementById('intentSelect').value,
+    ip_type:  document.getElementById('ipTypeSelect').value,
+    feedback: document.getElementById('feedbackSelect').value,
+  };
+  currentPage = 0;
+  loadLogs(currentPage, activeFilters);
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('ipInput').value = '';
+  document.getElementById('intentSelect').value = '';
+  document.getElementById('ipTypeSelect').value = '';
+  document.getElementById('feedbackSelect').value = '';
+  activeFilters = {};
+  currentPage = 0;
+  loadLogs(0, {});
+});
+
+// Enter key on search
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('applyBtn').click();
+});
+
+// ---- Modal ----
+async function openModal(logId, sessionId) {
+  const overlay = document.getElementById('modalOverlay');
+  const body    = document.getElementById('modalBody');
+  overlay.classList.add('open');
+  body.innerHTML = `<div class="empty"><span class="spinner"></span>Loading...</div>`;
+
+  try {
+    const r = await fetch(`${API}/admin/logs/${logId}?session_id=${sessionId}`);
+    const log = await r.json();
+    renderModal(log);
+  } catch(e) {
+    body.innerHTML = `<div class="empty">Failed to load log detail.</div>`;
+  }
+}
+
+function renderModal(log) {
+  const body = document.getElementById('modalBody');
+
+  const contextHtml = log.context
+    ? `
+      <div class="section-label">Context sent to LLM</div>
+      <div class="collapsible-header" id="ctxHeader">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">Show full context</span>
+        <span class="chev">&#9660;</span>
+      </div>
+      <div class="collapsible-body" id="ctxBody">${escapeHtml(log.context)}</div>
+    `
+    : `<div class="section-label" style="margin-bottom:8px">Context</div>
+       <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Not available (non-retrieval intent)</div>`;
+
+  body.innerHTML = `
+    <div class="meta-grid">
+      <div class="meta-item"><div class="meta-key">ID</div><div class="meta-val">${log.id}</div></div>
+      <div class="meta-item"><div class="meta-key">Time</div><div class="meta-val">${fmtTime(log.timestamp)}</div></div>
+      <div class="meta-item"><div class="meta-key">IP</div><div class="meta-val" style="font-family:monospace">${log.ip || '—'}</div></div>
+      <div class="meta-item"><div class="meta-key">IP Type</div><div class="meta-val">${ipTypeBadge(log.ip_type)}</div></div>
+      <div class="meta-item"><div class="meta-key">Session</div><div class="meta-val" style="font-size:11px;font-family:monospace">${log.session_id}</div></div>
+      <div class="meta-item"><div class="meta-key">Intent</div><div class="meta-val">${intentBadge(log.intent)}</div></div>
+      <div class="meta-item"><div class="meta-key">Language</div><div class="meta-val">${log.language || '—'}</div></div>
+      <div class="meta-item"><div class="meta-key">Model</div><div class="meta-val">${log.model || '—'}</div></div>
+      <div class="meta-item"><div class="meta-key">User Agent</div><div class="meta-val" style="font-size:11px">${log.user_agent || '—'}</div></div>
+    </div>
+
+    <div class="section-label">Question</div>
+    <div class="content-box">${escapeHtml(log.question)}</div>
+
+    <div class="section-label">Answer</div>
+    <div class="content-box">${escapeHtml(log.answer)}</div>
+
+    ${contextHtml}
+
+    <div class="section-label">Feedback</div>
+    <div class="feedback-row">
+      <button class="feedback-btn ${log.feedback === 'up' ? 'active-up' : ''}" id="fbUp" data-id="${log.id}" data-session="${log.session_id}">Thumbs up</button>
+      <button class="feedback-btn ${log.feedback === 'down' ? 'active-down' : ''}" id="fbDown" data-id="${log.id}" data-session="${log.session_id}">Thumbs down</button>
+      <span id="fbStatus" style="font-size:12px;color:var(--text-muted)">${log.feedback ? `Current: ${log.feedback}` : 'No feedback yet'}</span>
+    </div>
+  `;
+
+  // Collapsible context
+  const ctxHeader = document.getElementById('ctxHeader');
+  const ctxBody   = document.getElementById('ctxBody');
+  if (ctxHeader) {
+    ctxHeader.addEventListener('click', () => {
+      const open = ctxBody.classList.toggle('open');
+      ctxHeader.classList.toggle('expanded', open);
+      ctxHeader.querySelector('span:first-child').textContent = open ? 'Hide context' : 'Show full context';
+    });
+  }
+
+  // Feedback buttons
+  document.getElementById('fbUp')?.addEventListener('click', () => submitFeedback(log.id, log.session_id, 'up'));
+  document.getElementById('fbDown')?.addEventListener('click', () => submitFeedback(log.id, log.session_id, 'down'));
+}
+
+async function submitFeedback(logId, sessionId, feedback) {
+  try {
+    await fetch(`${API}/admin/logs/${logId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback, session_id: sessionId }),
+    });
+    document.getElementById('fbUp').classList.toggle('active-up', feedback === 'up');
+    document.getElementById('fbDown').classList.toggle('active-down', feedback === 'down');
+    document.getElementById('fbUp').classList.toggle('active-up', feedback !== 'up' ? false : undefined);
+    document.getElementById('fbStatus').textContent = `Current: ${feedback}`;
+
+    // Refresh stats
+    loadStats();
+    loadLogs(currentPage, activeFilters);
+  } catch(e) {
+    alert('Failed to save feedback.');
+  }
+}
+
+// Close modal
+document.getElementById('modalClose').addEventListener('click', () => {
+  document.getElementById('modalOverlay').classList.remove('open');
+});
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay'))
+    document.getElementById('modalOverlay').classList.remove('open');
+});
+
+function escapeHtml(str) {
+  if (!str) return '—';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---- Init ----
+loadStats();
+loadLogs(0, {});
+</script>
+</body>
+</html>

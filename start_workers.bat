@@ -75,16 +75,12 @@ echo  Colep AI started successfully.
 echo ===========================================================
 echo.
 echo  Services launched:
-echo    - FastAPI       http://localhost:8000
 echo    - Watchdog      managing 4 Celery workers:
 echo        * worker.orchestration  (concurrency=2)
 echo        * worker.ingestion      (concurrency=4)
 echo        * worker.indexing       (concurrency=8)
 echo        * worker.cleanup        (concurrency=8)
 echo.
-echo  Endpoints:
-echo    POST http://localhost:8000/ingest/start
-echo    GET  http://localhost:8000/ingest/status/{job_id}
 echo.
 pause
 endlocal

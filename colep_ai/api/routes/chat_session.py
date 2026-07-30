@@ -28,7 +28,7 @@ import uuid
 import anthropic
 import redis.asyncio as aioredis
 from azure.search.documents import SearchClient
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from openai import AsyncAzureOpenAI
 from pydantic import BaseModel
 import asyncio
@@ -48,6 +48,10 @@ from colep_ai.conversation.summariser import update_summary_incremental
 from colep_ai.database.redis_client import set_summary
 from colep_ai.database.mongo_client import update_summary as cosmos_update_summary
 from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
+
+from colep_ai.database.query_log_client import get_query_logs_container, write_query_log
+from colep_ai.core.config import settings as _settings
+
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["Chat"])
@@ -223,6 +227,45 @@ def settings_ttl() -> int:
     return settings.SESSION_TTL_SECONDS
 
 
+
+# ---------------------------------------------------------------------------
+# New background task — logging only, no impact on response path
+# ---------------------------------------------------------------------------
+
+async def _log_query_background(
+    session_id: str,
+    ip: str,
+    user_agent: str,
+    question: str,
+    answer: str,
+    intent: str,
+    language: str = "",
+    model: str = "",
+    context: str | None = None,
+) -> None:
+    """
+    Writes query log to Cosmos in background.
+    Failures are swallowed — logging must never affect the response path.
+    """
+    try:
+        container = get_query_logs_container()
+        await write_query_log(
+            container=container,
+            session_id=session_id,
+            ip=ip,
+            user_agent=user_agent,
+            question=question,
+            answer=answer,
+            intent=intent,
+            language=language,
+            model=model,
+            context=context,
+        )
+    except Exception as exc:
+        from colep_ai.core.logger import get_logger
+        get_logger(__name__).warning(f"Query log write failed (non-fatal) | {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Main endpoint
 # ---------------------------------------------------------------------------
@@ -230,6 +273,7 @@ def settings_ttl() -> int:
 @router.post("/query", response_model=QueryResponse)
 async def query(
     req: QueryRequest,
+    request: Request,                                           # <-- ADDED
     background_tasks: BackgroundTasks,
     session_id: str = Query(
         default=None,
@@ -251,6 +295,10 @@ async def query(
     if not session_id:
         session_id = str(uuid.uuid4())
         logger.info(f"New session_id generated | session_id={session_id}")
+
+    # Capture IP and user-agent once at route entry
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+    user_agent = request.headers.get("User-Agent", "unknown")
 
     request_start = time.monotonic()
 
@@ -300,6 +348,21 @@ async def query(
     # ------------------------------------------------------------------
     if intent in ("greeting", "malicious"):
         assistant_reply = check["reply"]
+
+        # Log non-retrieval path (no context — retrieval never ran)
+        background_tasks.add_task(
+            _log_query_background,
+            session_id=session_id,
+            ip=client_ip,
+            user_agent=user_agent,
+            question=req.query,
+            answer=assistant_reply,
+            intent=intent,
+            language="",
+            model="gpt-5.1",        # classifier model
+            context=None,
+        )
+
         background_tasks.add_task(
             _persist_assistant_and_summarise,
             session_id=session_id,
@@ -310,8 +373,13 @@ async def query(
             cosmos_container=cosmos_container,
             openai_client=openai_client,
         )
-        return QueryResponse(answer=assistant_reply, citations=[], language="", session_id=session_id)
 
+        return QueryResponse(
+            answer=assistant_reply,
+            citations=[],
+            language="",
+            session_id=session_id,
+        )
     # ------------------------------------------------------------------
     # 4b. Conversation summary — serve from DB or generate once
     # ------------------------------------------------------------------
@@ -398,7 +466,23 @@ async def query(
     _log_stage("citation_resolution", stage_start)
 
     # ------------------------------------------------------------------
-    # 9. Persist assistant turn + summarise in background
+    # 9. Log retrieval path — full context included
+    # ------------------------------------------------------------------
+    background_tasks.add_task(
+        _log_query_background,
+        session_id=session_id,
+        ip=client_ip,
+        user_agent=user_agent,
+        question=req.query,
+        answer=generation_output["answer"],
+        intent=intent,
+        language=generation_output["language"],
+        model=_settings.ANTHROPIC_MODEL,
+        context=generation_output.get("context"),   # full context string
+    )
+
+    # ------------------------------------------------------------------
+    # 10. Persist assistant turn + summarise in background
     # ------------------------------------------------------------------
     background_tasks.add_task(
         _persist_assistant_and_summarise,

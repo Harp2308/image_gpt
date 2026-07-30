@@ -20,6 +20,9 @@ from colep_ai.api.routes.ingest import router as ingest_router
 from colep_ai.api.routes.history import router as history_router
 from colep_ai.api.routes.sessions import router as sessions_router
 from colep_ai.core.config import  settings
+# logs
+from colep_ai.api.routes.admin import router as admin_router
+from colep_ai.database.query_log_client import ensure_query_logs_container, get_query_logs_container
 
 logger = get_logger(__name__)
 
@@ -42,6 +45,7 @@ async def _init_clients():
     ensure_page_index(get_index_client())   # ensure index exists before search client is used
     deps.search_client = get_search_client()
     await ensure_cosmos_resources()
+    await ensure_query_logs_container()          # <-- ADD
     logger.info("Clients initialized")
 
 
@@ -49,8 +53,15 @@ async def _init_clients():
 app.include_router(chat_router)
 app.include_router(history_router)
 app.include_router(sessions_router)
+app.include_router(admin_router)
 
 @app.get("/")
 async def serve_ui():
     # return FileResponse("colep_ai/frontend/colep_ui.html")
     return FileResponse("colep_ai/frontend/chat_history.html")
+
+@app.get("/shinchan")
+async def serve_dashboard():
+    return FileResponse("colep_ai/frontend/dashboard.html")
+ 
+ 
