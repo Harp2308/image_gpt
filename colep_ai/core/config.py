@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     SHAREPOINT_SITE_PATH: str = ""   # e.g. /sites/colep
 
     # ------------------------------------------------------------------
+    # Azure Blob Storage
+    # ------------------------------------------------------------------
+
+    AZURE_STORAGE_CONNECTION_STRING: SecretStr = SecretStr("")
+    AZURE_STORAGE_CONTAINER_NAME: str = "colep-ai"
+    # ------------------------------------------------------------------
+    # Cohere
+    # ------------------------------------------------------------------
+    COHERE_API_KEY: SecretStr = SecretStr("")
+    
+    # ------------------------------------------------------------------
     # Ingestion pipeline tuning
     # ------------------------------------------------------------------
 

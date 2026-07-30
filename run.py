@@ -17,8 +17,8 @@ if __name__ == "__main__":
         uvicorn.run(
             "colep_ai.api.ingestion_indexing_main:app",
             host="0.0.0.0",
-            port=4002,
-            reload=False,
+            port=4001,
+            reload=True,
         )
     finally:
         worker_process.terminate()

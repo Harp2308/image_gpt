@@ -136,6 +136,7 @@ def run_pipeline(
             dpi=200,
             output_dir=str(page_crops_dir),
             group_resolver=group_resolver,
+            source_file=source_file, 
         )
         marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
         logger.info(f"Stage 4 done | crops: {len(crops_metadata)}, marked: {marked_image_path}")
@@ -164,6 +165,7 @@ def run_pipeline(
             page_num=page_number,
             crops_root=settings.crops_dir(source_file),
             output_dir=settings.combined_dir(source_file),
+            source_file=source_file, 
         )
 
         for entry in result.get("entries", []):

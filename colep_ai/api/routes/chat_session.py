@@ -34,7 +34,7 @@ from pydantic import BaseModel
 import asyncio
 
 from colep_ai.core.logger import get_logger
-from colep_ai.retrieval.ai_search_retrieval import retrieve, RetrievalRejected
+from colep_ai.retrieval.ai_search_retrieval import retrieve, RetrievalRejected,RetrievalResponse
 from colep_ai.generation.ai_search_generation_session import generate_from_retrieval
 from colep_ai.generation.prompts.check_query_prompt import CHECK_QUERY_SYSTEM_PROMPT
 from colep_ai.api.dependencies import get_openai, get_claude, get_search, get_redis, get_cosmos
@@ -51,7 +51,7 @@ from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
 
 from colep_ai.database.query_log_client import get_query_logs_container, write_query_log
 from colep_ai.core.config import settings as _settings
-
+from colep_ai.retrieval.reranker import rerank
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["Chat"])
@@ -62,7 +62,7 @@ router = APIRouter(tags=["Chat"])
 
 class QueryRequest(BaseModel):
     query: str
-    top_k: int = 5
+    top_k: int = 20
     user_id: str = ""
     user_name: str = ""
 
@@ -411,12 +411,23 @@ async def query(
         query=req.query,
         openai_client=openai_client,
         search_client=search_client,
-        top_k=req.top_k,
+        top_k=20,
     )
     _log_stage("retrieval", stage_start)
 
     if isinstance(retrieval_response, RetrievalRejected):
         raise HTTPException(status_code=400, detail=retrieval_response.reason)
+
+    # ------------------------------------------------------------------
+    # 5b. Rerank
+    # ------------------------------------------------------------------
+    stage_start = time.monotonic()
+    retrieval_response = RetrievalResponse(
+        results=await rerank(req.query, retrieval_response.results),
+        language=retrieval_response.language,
+        line_filter=retrieval_response.line_filter,
+    )
+    _log_stage("rerank", stage_start)
 
     # ------------------------------------------------------------------
     # 6. Build history messages for generation

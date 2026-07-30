@@ -15,15 +15,15 @@ from colep_ai.database.mongo_client import ensure_cosmos_resources
 from colep_ai.generation.claude_client import get_claude_client
 from colep_ai.indexing.embedder import get_openai_client
 # from colep_ai.api.routes.chat import router as chat_router
+from colep_ai.core.config import  settings
+from colep_ai.database.query_log_client import ensure_query_logs_container, get_query_logs_container
+
 from colep_ai.api.routes.chat_session import router as chat_router
 from colep_ai.api.routes.ingest import router as ingest_router
 from colep_ai.api.routes.history import router as history_router
 from colep_ai.api.routes.sessions import router as sessions_router
-from colep_ai.core.config import  settings
-# logs
 from colep_ai.api.routes.admin import router as admin_router
-from colep_ai.database.query_log_client import ensure_query_logs_container, get_query_logs_container
-
+from colep_ai.api.routes.blob_viewer import router as blob_router
 logger = get_logger(__name__)
 
 app = FastAPI(title="Colep AI")
@@ -54,7 +54,7 @@ app.include_router(chat_router)
 app.include_router(history_router)
 app.include_router(sessions_router)
 app.include_router(admin_router)
-
+app.include_router(blob_router)
 @app.get("/")
 async def serve_ui():
     # return FileResponse("colep_ai/frontend/colep_ui.html")

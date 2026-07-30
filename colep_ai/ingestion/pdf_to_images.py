@@ -8,7 +8,11 @@ import numpy as np
 
 from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
 from colep_ai.core.logger import get_logger
-
+from colep_ai.utils.blob_storage import (
+    get_blob_client,
+    blob_crop_key,
+    blob_marked_key,
+)
 logger = get_logger(__name__)
 
 
@@ -156,6 +160,7 @@ def _find_label_position(
 def extract_images_from_page(
     pdf_path: str,
     page_number: int,  # 0-based
+    source_file: str ,
     dpi: int = 200,
     output_dir: str = "page_img",
     min_size: int = 20,
@@ -269,6 +274,10 @@ def extract_images_from_page(
             logger.error(f"Failed to write crop {crop_path}" )
             continue
 
+        blob_key = blob_crop_key(source_file, page_number + 1, f"{name}.png")
+        get_blob_client().upload_file(crop_path, blob_key)
+
+
         cv2.rectangle(visual, (x0, y0), (x1, y1), (0, 255, 0), 3)
 
         (text_w, text_h), baseline = cv2.getTextSize(name, font, font_scale, thickness)
@@ -297,8 +306,10 @@ def extract_images_from_page(
 
     marked_path = marked_dir / f"{page_label}_marked.png"
     if not cv2.imwrite(str(marked_path), visual):
-        logger.error(f"Failed to write marked page image {marked_path}" )
-
+        logger.error(f"Failed to write marked page image {marked_path}")
+    else:
+        blob_key = blob_marked_key(source_file, page_number + 1, marked_path.name)
+        get_blob_client().upload_file(marked_path, blob_key)
     doc.close()
 
     return saved

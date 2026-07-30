@@ -12,7 +12,10 @@ from typing import Any
 import hashlib
 
 from colep_ai.core.logger import get_logger
-
+from colep_ai.utils.blob_storage import (
+    get_blob_client,
+    blob_combined_key,
+)
 logger = get_logger(__name__)
 
 
@@ -193,6 +196,7 @@ def reconstruct_all_steps(
     page_num: int,
     crops_root: Path,
     output_dir: Path,
+    source_file: str,  
     reconstruct_fn=reconstruct,
 ) -> dict[Any, dict]:  # changed: value is now a dict, not bool
     page_dir = crops_root / f"page_{page_num}"
@@ -226,6 +230,8 @@ def reconstruct_all_steps(
 
         out_path = get_combined_output_path(output_dir, page_num, step_key, image_ids)
         cv2.imwrite(str(out_path), result)
+        blob_key = blob_combined_key(source_file, page_num, out_path.name)
+        get_blob_client().upload_file(out_path, blob_key)
         logger.info(f"Step {step_key}: saved {out_path}")
         status[step_key] = {"success": True, "is_combined": True, "combined_image": out_path.name}
 

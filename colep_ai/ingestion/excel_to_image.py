@@ -11,7 +11,11 @@ import win32com.client
 
 from colep_ai.core.logger import get_logger
 from colep_ai.ingestion.irm_strip import strip_irm
-
+from colep_ai.utils.blob_storage import (
+    get_blob_client,
+    blob_pdf_key,
+    blob_page_image_key,
+)
 logger = get_logger(__name__)
 
 XL_PAGE_BREAK_MANUAL = -4135
@@ -153,6 +157,9 @@ def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
         raise RuntimeError(f"Excel export failed, no PDF at {pdf_path}")
 
     logger.info(f"excel_to_pdf: {excel_path} -> {pdf_path}")
+    # ── Blob upload (after local save — local copy untouched) ──
+    blob_key = blob_pdf_key(source_file, f"{source_file}.pdf")
+    get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
 
 
@@ -171,6 +178,10 @@ def pdf_to_images(pdf_path: str, output_dir: str, source_file: str, dpi: int = 2
             img_path = output_dir_p / f"{source_file}_page_{i}.png"
             pix.save(str(img_path))
             image_paths.append(str(img_path))
+            # ── Blob upload per page (after local save) ──
+            blob_key = blob_page_image_key(source_file, img_path.name)
+            get_blob_client().upload_file(img_path, blob_key)
+
     finally:
         doc.close()
 
