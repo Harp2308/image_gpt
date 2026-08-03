@@ -12,6 +12,7 @@ from colep_ai.core.logger import get_logger
 from colep_ai.database.azure_search_client import get_search_client,get_index_client,ensure_page_index
 # from colep_ai.database.cosmos_client import ensure_cosmos_resources
 from colep_ai.database.mongo_client import ensure_cosmos_resources
+# from colep_ai.database.cosmos_client import ensure_cosmos_resources
 from colep_ai.generation.claude_client import get_claude_client
 from colep_ai.indexing.embedder import get_openai_client
 # from colep_ai.api.routes.chat import router as chat_router

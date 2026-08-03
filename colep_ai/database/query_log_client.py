@@ -71,6 +71,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _classify_ip(ip: str) -> str:
+    if ip in ("127.0.0.1", "::1", "localhost"):
+        return "internal"
+    try:
+        first_octet = int(ip.split(".")[0])
+        return "internal" if first_octet in (11, 12, 13) else "external"
+    except (ValueError, IndexError):
+        return "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Write
 # ---------------------------------------------------------------------------
@@ -86,12 +96,14 @@ async def write_query_log(
     language: str = "",
     model: str = "",
     context: Optional[str] = None,
+    tokens: Optional[dict] = None,
 ) -> str:
     log_id = str(uuid.uuid4())
     doc = {
         "_id": log_id,
         "session_id": session_id,
         "ip": ip,
+        "ip_type": _classify_ip(ip),
         "user_agent": user_agent,
         "question": question,
         "answer": answer,
@@ -100,6 +112,12 @@ async def write_query_log(
         "context": context,
         "intent": intent,
         "feedback": None,
+        "tokens": tokens or {
+            "classifier_input":  None,
+            "classifier_output": None,
+            "generation_input":  None,
+            "generation_output": None,
+        },
         "timestamp": _now_iso(),
     }
     await container.insert_one(doc)

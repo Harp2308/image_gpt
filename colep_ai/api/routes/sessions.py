@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from colep_ai.api.dependencies import get_cosmos
-from colep_ai.database.mongo_client import list_sessions
 from colep_ai.core.logger import get_logger
-from colep_ai.database.mongo_client import delete_sessions_by_user
+from colep_ai.database.mongo_client import delete_sessions_by_user,list_sessions
+# from colep_ai.database.cosmos_client import delete_sessions_by_user,list_sessions
 logger = get_logger(__name__)
 router = APIRouter(tags=["Sessions"])
 

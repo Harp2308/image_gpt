@@ -283,7 +283,7 @@ async def generate_answer(
         f"| total={usage.input_tokens + usage.output_tokens}"
     )
 
-    return resp.content[0].text
+    return resp.content[0].text, {"input": usage.input_tokens, "output": usage.output_tokens}
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +359,7 @@ async def generate_from_retrieval(
         retrieval_response.results, retrieval_response.language
     )
 
-    answer = await generate_answer(
+    answer, generation_tokens = await generate_answer(
         claude_client,
         query,
         context,
@@ -387,4 +387,5 @@ async def generate_from_retrieval(
         "language": retrieval_response.language,
         "results": retrieval_response.results,
         "context": context, 
+        "generation_tokens": generation_tokens,
     }

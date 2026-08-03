@@ -8,6 +8,7 @@ from fastapi import Depends
 from colep_ai.database.redis_client import get_redis_client
 from colep_ai.database.cosmos_client import get_cosmos_container 
 from colep_ai.database.mongo_client import get_cosmos_container
+# from colep_ai.database.cosmos_client import get_cosmos_container
 openai_client: AsyncAzureOpenAI | None = None
 claude_client: anthropic.AsyncAnthropic | None = None
 search_client: SearchClient | None = None

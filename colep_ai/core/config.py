@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     # Cosmos DB  (conversation history)
     # ------------------------------------------------------------------
     COSMOS_URL: str = "https://localhost:8081"          # local emulator default
-    COSMOS_KEY: SecretStr = SecretStr("C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPEdkbWKGMDdk/26Y+2lLbFhw==")  # emulator master key
+    COSMOS_KEY: SecretStr =  SecretStr("")  # emulator master key
     COSMOS_DB_NAME: str = "colep_ai"
     COSMOS_CONTAINER_NAME: str = "chat_sessions"
  

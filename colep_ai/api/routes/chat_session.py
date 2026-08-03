@@ -48,6 +48,8 @@ from colep_ai.conversation.summariser import update_summary_incremental
 from colep_ai.database.redis_client import set_summary
 from colep_ai.database.mongo_client import update_summary as cosmos_update_summary
 from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
+# from colep_ai.database.cosmos_client import update_summary as cosmos_update_summary
+# from colep_ai.database.cosmos_client import append_turn as cosmos_append_turn
 
 from colep_ai.database.query_log_client import get_query_logs_container, write_query_log
 from colep_ai.core.config import settings as _settings
@@ -113,7 +115,12 @@ async def _check_query(query: str, openai_client: AsyncAzureOpenAI) -> dict:
             {"role": "user", "content": query},
         ],
     )
-    return json.loads(response.choices[0].message.content)
+    result = json.loads(response.choices[0].message.content)
+    result["_tokens"] = {
+        "input": response.usage.prompt_tokens,
+        "output": response.usage.completion_tokens,
+    }
+    return result
 
 
 async def _resolve_conversation_summary(
@@ -242,6 +249,7 @@ async def _log_query_background(
     language: str = "",
     model: str = "",
     context: str | None = None,
+     tokens: dict | None = None,
 ) -> None:
     """
     Writes query log to Cosmos in background.
@@ -260,6 +268,7 @@ async def _log_query_background(
             language=language,
             model=model,
             context=context,
+            tokens=tokens,
         )
     except Exception as exc:
         from colep_ai.core.logger import get_logger
@@ -361,6 +370,12 @@ async def query(
             language="",
             model="gpt-5.1",        # classifier model
             context=None,
+            tokens={
+                "classifier_input":    check["_tokens"]["input"],
+                "classifier_output":   check["_tokens"]["output"],
+                "generation_input":    None,
+                "generation_output":   None,
+            },
         )
 
         background_tasks.add_task(
@@ -489,7 +504,13 @@ async def query(
         intent=intent,
         language=generation_output["language"],
         model=_settings.ANTHROPIC_MODEL,
-        context=generation_output.get("context"),   # full context string
+       context=generation_output.get("context"),
+        tokens={
+            "classifier_input":  check["_tokens"]["input"],
+            "classifier_output": check["_tokens"]["output"],
+            "generation_input":  generation_output["generation_tokens"]["input"],
+            "generation_output": generation_output["generation_tokens"]["output"],
+        },
     )
 
     # ------------------------------------------------------------------

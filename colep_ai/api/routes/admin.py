@@ -44,7 +44,7 @@ class LogSummary(BaseModel):
     id: str
     session_id: str
     ip: str
-    ip_type: Optional[str]
+    ip_type: Optional[str] = None
     user_agent: str
     question: str
     answer: str
@@ -57,6 +57,7 @@ class LogSummary(BaseModel):
 
 class LogDetail(LogSummary):
     context: Optional[str]
+    tokens: Optional[dict]
 
 
 class StatsResponse(BaseModel):
