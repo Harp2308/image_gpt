@@ -21,7 +21,7 @@ from urllib.parse import unquote
 logger = get_logger(__name__)
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
 
-
+ALLOWED_EXTENSIONS = (".xlsx", ".docx", ".doc")
 @router.post("/start/sharepoint", status_code=202)
 async def start_ingestion(request: IngestStartRequest):
     if request.mode == "sharepoint_folder":
@@ -59,7 +59,7 @@ async def start_local(
 
     saved = []
     for f in files:
-        if not f.filename.endswith(".xlsx"):
+        if not f.filename.lower().endswith(ALLOWED_EXTENSIONS):
             continue
         dest = local_dir / f.filename
         with open(dest, "wb") as out:

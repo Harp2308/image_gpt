@@ -72,7 +72,7 @@ def locate_crop(page, crop):
     return x, y, bw, bh
 
 
-def reconstruct(page_path, crop_paths):
+def reconstruct(page_path, crop_paths, bbox_index: dict[str, list[int]] | None = None):
     page = cv2.imread(page_path)
 
     placements = []
@@ -92,10 +92,16 @@ def reconstruct(page_path, crop_paths):
         result = locate_crop(page, crop)
 
         if result is None:
-            print(f"Could not locate: {path}")
-            continue
-
-        x, y, _, _ = result
+            # SIFT failed — try bbox fallback
+            image_id = Path(path).stem
+            bbox = (bbox_index or {}).get(image_id)
+            if bbox is None:
+                logger.warning(f"SIFT failed and no bbox for {image_id} — skipping crop")
+                continue
+            x, y = bbox[0], bbox[1]
+            logger.info(f"SIFT failed for {image_id} — using bbox fallback ({x}, {y})")
+        else:
+            x, y, _, _ = result
 
         h, w = crop.shape[:2]
 
@@ -196,7 +202,8 @@ def reconstruct_all_steps(
     page_num: int,
     crops_root: Path,
     output_dir: Path,
-    source_file: str,  
+    source_file: str,
+    bbox_index: dict[str, list[int]] | None = None,
     reconstruct_fn=reconstruct,
 ) -> dict[Any, dict]:  # changed: value is now a dict, not bool
     page_dir = crops_root / f"page_{page_num}"
@@ -222,7 +229,7 @@ def reconstruct_all_steps(
             status[step_key] = {"success": False, "is_combined": False, "combined_image": None}
             continue
 
-        result = reconstruct_fn(str(page_path), [str(p) for p in crop_paths])
+        result = reconstruct_fn(str(page_path), [str(p) for p in crop_paths], bbox_index=bbox_index)
         if result is None:
             logger.error(f"Step {step_key}: reconstruct_fn returned None — skipping")
             status[step_key] = {"success": False, "is_combined": False, "combined_image": None}

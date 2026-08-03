@@ -1,7 +1,7 @@
 """
 api/main.py
 """
-
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -35,7 +35,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+Path("outputs").mkdir(parents=True, exist_ok=True)
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/static", StaticFiles(directory="colep_ai/frontend"), name="static")
 

@@ -16,7 +16,7 @@ import re
 import time
 
 from colep_ai.core.config import settings
-from colep_ai.ingestion.excel_to_image import excel_to_pdf, pdf_to_images
+from colep_ai.ingestion.excel_to_image import excel_to_pdf, pdf_to_images, word_to_pdf
 from colep_ai.ingestion.ocr_extractor import image_to_vision_json
 from colep_ai.ingestion.pdf_to_images import extract_images_from_page
 from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
@@ -39,9 +39,14 @@ def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
     if pdf_path.exists():
         logger.info(f"Stage 1 skipped (cached) | pdf: {pdf_path}")
         return pdf_path
-    result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
-    logger.info(f"Stage 1 done | pdf: {result_path}")
 
+    ext = excel_path.suffix.lower()
+    if ext in (".docx", ".doc"):
+        result_path = word_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
+    else:
+        result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
+
+    logger.info(f"Stage 1 done | pdf: {result_path}")
     return Path(result_path)
 
 
@@ -160,12 +165,14 @@ def run_pipeline(
 
         # Stage 6: reconstruct grouped step images
         grouped = group_image_ids_by_entry(result.get("entries", []))
+        bbox_index = {m["image_id"]: m["bbox"] for m in crops_metadata if "bbox" in m}
         recon_status = reconstruct_all_steps(
             grouped=grouped,
             page_num=page_number,
             crops_root=settings.crops_dir(source_file),
             output_dir=settings.combined_dir(source_file),
-            source_file=source_file, 
+            source_file=source_file,
+            bbox_index=bbox_index,
         )
 
         for entry in result.get("entries", []):

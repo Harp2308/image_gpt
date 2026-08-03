@@ -162,6 +162,33 @@ def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
     get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
 
+def word_to_pdf(word_path: str, pdf_dir: str, source_file: str) -> str:
+    pdf_dir_p = Path(pdf_dir).resolve()
+    pdf_dir_p.mkdir(parents=True, exist_ok=True)
+    pdf_path = str(pdf_dir_p / f"{source_file}.pdf")
+
+    word = win32com.client.DispatchEx("Word.Application")
+    word.Visible = False
+    word.DisplayAlerts = False
+
+    try:
+        doc = word.Documents.Open(
+            str(Path(word_path).resolve()),
+            ReadOnly=True,
+            AddToRecentFiles=False,
+        )
+        try:
+            doc.SaveAs(pdf_path, FileFormat=17)  # 17 = wdFormatPDF
+        finally:
+            doc.Close(False)
+    finally:
+        word.Quit()
+
+    if not Path(pdf_path).exists():
+        raise RuntimeError(f"Word export failed, no PDF at {pdf_path}")
+
+    logger.info(f"word_to_pdf: {word_path} -> {pdf_path}")
+    return pdf_path
 
 def pdf_to_images(pdf_path: str, output_dir: str, source_file: str, dpi: int = 200) -> list[str]:
     output_dir_p = Path(output_dir)

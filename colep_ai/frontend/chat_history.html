@@ -503,7 +503,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          top_k: 5,
+          top_k: 20,
           user_id: USER_ID,
           user_name: USER_NAME,
         })
@@ -525,15 +525,25 @@
 
       // Replace markers with images from citations
       if (data.citations && data.citations.length) {
-  data.citations.forEach(cit => {
-    const markerText = escHtml('🖼️' + cit.marker);
-  const imgHtml = cit.image_url ?
-    `<br><img src="${cit.image_url}" alt="${escHtml(cit.image_description || '')}" style="max-width:480px;max-height:280px;object-fit:contain;border-radius:8px;margin:8px 0;border:1px solid var(--border);">` : '';
-  answerHtml = answerHtml.replace(markerText, imgHtml);
+        data.citations.forEach(cit => {
+          const imgHtml = cit.image_url ?
+            `<br><img src="${cit.image_url}" alt="${escHtml(cit.image_description || '')}" style="max-width:480px;max-height:280px;object-fit:contain;border-radius:8px;margin:8px 0;border:1px solid var(--border);">` : '';
+          console.log('CIT:', cit.marker, '| image_url:', cit.image_url);
+          // Only escape regex special chars — NOT spaces
+          const safeMarker = escHtml(cit.marker).replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&');
+          answerHtml = answerHtml.replace(new RegExp('\uD83D\uDDBC\uFE0F?' + safeMarker, 'g'), imgHtml);
+          answerHtml = answerHtml.replace(new RegExp(safeMarker, 'g'), imgHtml);
+        });
+      }
 
-  });
-  answerHtml = answerHtml.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-}
+      // Bold: **text** → <strong>text</strong>
+      answerHtml = answerHtml.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      // Linkify source file lines: "File: SomeName" → clickable PDF link
+      answerHtml = answerHtml.replace(
+        /File: ([^\s<,]+)/g,
+        (_, fname) => `File: <a href="/outputs/${fname}/pdf/${fname}.pdf" target="_blank" style="color:var(--accent);text-decoration:underline;">${fname}</a>`
+      );
       document.getElementById(pendingId).innerHTML = answerHtml;
       document.getElementById(pendingId).classList.remove('msg-muted');
     } catch(e) {
