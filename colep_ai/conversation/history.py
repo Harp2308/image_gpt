@@ -34,8 +34,8 @@ import redis.asyncio as aioredis
 
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
-# from colep_ai.database import cosmos_client as cosmos
-from colep_ai.database import mongo_client as cosmos
+from colep_ai.database import cosmos_client as cosmos
+# from colep_ai.database import mongo_client as cosmos
 from colep_ai.database import redis_client as rclient
 
 logger = get_logger(__name__)

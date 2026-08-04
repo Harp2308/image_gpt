@@ -46,10 +46,10 @@ from colep_ai.conversation.history import (
 )
 from colep_ai.conversation.summariser import update_summary_incremental
 from colep_ai.database.redis_client import set_summary
-from colep_ai.database.mongo_client import update_summary as cosmos_update_summary
-from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
-# from colep_ai.database.cosmos_client import update_summary as cosmos_update_summary
-# from colep_ai.database.cosmos_client import append_turn as cosmos_append_turn
+# from colep_ai.database.mongo_client import update_summary as cosmos_update_summary
+# from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
+from colep_ai.database.cosmos_client import update_summary as cosmos_update_summary
+from colep_ai.database.cosmos_client import append_turn as cosmos_append_turn
 
 from colep_ai.database.query_log_client import get_query_logs_container, write_query_log
 from colep_ai.core.config import settings as _settings
@@ -109,19 +109,35 @@ def _resolve_image_blob_url(
         return f"/blob/view/{prefix}/combined/page_{page_number}/{image_ref}"
     return f"/blob/view/{prefix}/crops/page_{page_number}/crops/{image_ref}.png"
 
-async def _check_query(query: str, openai_client: AsyncAzureOpenAI) -> dict:
+async def _check_query(
+    query: str,
+    openai_client: AsyncAzureOpenAI,
+    history_turns: list[dict],          
+) -> dict:
     import json
+
+    # Build history block for classifier context
+    history_text = ""
+    if history_turns:
+        lines = []
+        for t in history_turns:
+            role_label = "User" if t["role"] == "user" else "Assistant"
+            lines.append(f"{role_label}: {t['content']}")
+        history_text = "\n\n".join(lines)
+
+    user_content = (
+        f"Conversation history (last {len(history_turns)} turns):\n{history_text}\n\nCurrent query: {query}"
+        if history_text
+        else f"Current query: {query}"
+    )
 
     response = await openai_client.chat.completions.create(
         model="gpt-5.1",
         temperature=0,
         response_format={"type": "json_object"},
         messages=[
-            {
-                "role": "system",
-                "content": CHECK_QUERY_SYSTEM_PROMPT,
-            },
-            {"role": "user", "content": query},
+            {"role": "system", "content": CHECK_QUERY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
         ],
     )
     result = json.loads(response.choices[0].message.content)
@@ -130,7 +146,6 @@ async def _check_query(query: str, openai_client: AsyncAzureOpenAI) -> dict:
         "output": response.usage.completion_tokens,
     }
     return result
-
 
 async def _resolve_conversation_summary(
     state: SessionState,
@@ -258,7 +273,8 @@ async def _log_query_background(
     language: str = "",
     model: str = "",
     context: str | None = None,
-     tokens: dict | None = None,
+    tokens: dict | None = None,
+    classifier_response: dict | None = None,
 ) -> None:
     """
     Writes query log to Cosmos in background.
@@ -278,6 +294,7 @@ async def _log_query_background(
             model=model,
             context=context,
             tokens=tokens,
+            classifier_response=classifier_response,
         )
     except Exception as exc:
         from colep_ai.core.logger import get_logger
@@ -357,8 +374,10 @@ async def query(
     # 3. Classify query
     # ------------------------------------------------------------------
     stage_start = time.monotonic()
-    check = await _check_query(req.query, openai_client)
+    history_turns = state.turns[-3:] if state.turns else []        
+    check = await _check_query(req.query, openai_client, history_turns)
     intent = check.get("intent")
+    classifier_response = {k: v for k, v in check.items() if k != "_tokens"}
     _log_stage("check_query", stage_start)
 
     # ------------------------------------------------------------------
@@ -366,6 +385,8 @@ async def query(
     # ------------------------------------------------------------------
     if intent in ("greeting", "malicious"):
         assistant_reply = check["reply"]
+        
+
 
         # Log non-retrieval path (no context — retrieval never ran)
         background_tasks.add_task(
@@ -379,6 +400,7 @@ async def query(
             language="",
             model="gpt-5.1",        # classifier model
             context=None,
+            classifier_response=classifier_response,
             tokens={
                 "classifier_input":    check["_tokens"]["input"],
                 "classifier_output":   check["_tokens"]["output"],
@@ -431,11 +453,31 @@ async def query(
     # 5. Retrieval
     # ------------------------------------------------------------------
     stage_start = time.monotonic()
+    is_followup = check.get("is_followup", False)
+    effective_query = (
+        check["rephrased_query"]
+        if is_followup and check.get("rephrased_query")
+        else req.query
+    )
+    source_file_filter = (
+        check.get("followup_source_file") or None
+        if is_followup
+        else None
+    )
+
+    if is_followup:
+        logger.info(
+            f"Follow-up detected | rephrased='{effective_query}' "
+            f"| source_file_filter={source_file_filter} "
+            f"| line_override={check.get('followup_line_number')}"
+        )
+
     retrieval_response = await retrieve(
-        query=req.query,
+        query=effective_query,
         openai_client=openai_client,
         search_client=search_client,
         top_k=20,
+        source_file_filter=source_file_filter,
     )
     _log_stage("retrieval", stage_start)
     
@@ -523,6 +565,7 @@ async def query(
         language=generation_output["language"],
         model=_settings.ANTHROPIC_MODEL,
        context=generation_output.get("context"),
+        classifier_response=classifier_response,
         tokens={
             "classifier_input":  check["_tokens"]["input"],
             "classifier_output": check["_tokens"]["output"],

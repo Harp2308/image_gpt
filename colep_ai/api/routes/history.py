@@ -17,7 +17,9 @@ from openai import AsyncAzureOpenAI,APIConnectionError, APITimeoutError
 from pydantic import BaseModel
 
 from colep_ai.api.dependencies import get_openai, get_cosmos
-from colep_ai.database import mongo_client as db
+# from colep_ai.database import mongo_client as db
+from colep_ai.database import cosmos_client as db
+
 from colep_ai.core.logger import get_logger
 from colep_ai.generation.prompts.chat_summary_prompt import SUMMARY_SYSTEM_PROMPT
 logger = get_logger(__name__)

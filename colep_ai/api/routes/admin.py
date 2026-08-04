@@ -43,21 +43,21 @@ async def get_logs_container():
 class LogSummary(BaseModel):
     id: str
     session_id: str
-    ip: str
+    ip: str = ""
     ip_type: Optional[str] = None
-    user_agent: str
-    question: str
-    answer: str
-    language: str
-    model: str
-    intent: str
-    feedback: Optional[str]
-    timestamp: str
-
+    user_agent: str = ""
+    question: str = ""
+    answer: str = ""
+    language: str = ""
+    model: str = ""
+    intent: str = ""
+    feedback: Optional[str] = None
+    timestamp: str = ""
 
 class LogDetail(LogSummary):
     context: Optional[str]
     tokens: Optional[dict]
+    classifier_response: Optional[dict] = None
 
 
 class StatsResponse(BaseModel):

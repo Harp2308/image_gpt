@@ -210,6 +210,7 @@ async def retrieve(
     openai_client: AsyncAzureOpenAI | None = None,
     search_client: SearchClient | None = None,
     top_k: int = _TOP_K,
+    source_file_filter: str | None = None,
 ) -> RetrievalResponse | RetrievalRejected:
     """
     Returns RetrievalResponse on success.
@@ -231,7 +232,14 @@ async def retrieve(
 
     # Step 2 — line number filter
     line_number = _extract_line_number(query)
-    odata_filter = _build_odata_filter(line_number)
+    
+    if line_number is not None:
+        odata_filter = _build_odata_filter(line_number)
+    elif source_file_filter:
+        odata_filter = f"source_file eq '{source_file_filter}'"
+        logger.info(f"Using source_file filter from follow-up context: {source_file_filter}")
+    else:
+        odata_filter = None
 
     # Step 3 — embed (async, awaited directly)
     embed_start = time.time()

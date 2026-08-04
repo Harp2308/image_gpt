@@ -295,8 +295,8 @@ async def list_sessions(container, limit: int = 100) -> list[dict]:
     At large scale, consider maintaining a separate 'sessions index' container
     with a fixed partition key (e.g. "all") to avoid fan-out reads.
 
-    enable_cross_partition_query is required — Cosmos will raise without it
-    when no partition_key is supplied.
+    Cross-partition queries are enabled by default in newer SDK versions —
+    enable_cross_partition_query parameter has been removed/deprecated.
     """
     query = (
         "SELECT c.id, c.summary, c.user_id, c.user_name, c.created_at, c.updated_at "
@@ -309,7 +309,6 @@ async def list_sessions(container, limit: int = 100) -> list[dict]:
     sessions = []
     async for item in container.query_items(
         query=query,
-        enable_cross_partition_query=True,
     ):
         sessions.append({
             "session_id": item["id"],
@@ -387,7 +386,6 @@ async def delete_sessions_by_user(container, user_id: str, user_name: str) -> in
     async for item in container.query_items(
         query=query,
         parameters=params,
-        enable_cross_partition_query=True,
     ):
         session_ids.append(item["session_id"])
 

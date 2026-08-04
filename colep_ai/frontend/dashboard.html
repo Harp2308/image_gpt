@@ -742,6 +742,18 @@ function renderModal(log) {
 
     ${contextHtml}
 
+    <div class="section-label">Classifier Response</div>
+    ${log.classifier_response
+      ? `
+        <div class="collapsible-header" id="clsHeader">
+          <span style="font-size:13px;font-weight:600;color:var(--text)">Show classifier output</span>
+          <span class="chev">&#9660;</span>
+        </div>
+        <div class="collapsible-body" id="clsBody">${escapeHtml(JSON.stringify(log.classifier_response, null, 2))}</div>
+      `
+      : `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">—</div>`
+    }
+
     <div class="section-label">Token usage</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:14px">
       ${tokenCell('Classifier in',  log.tokens?.classifier_input)}
@@ -761,11 +773,11 @@ function renderModal(log) {
   // Collapsible context
   const ctxHeader = document.getElementById('ctxHeader');
   const ctxBody   = document.getElementById('ctxBody');
-  if (ctxHeader) {
-    ctxHeader.addEventListener('click', () => {
-      const open = ctxBody.classList.toggle('open');
-      ctxHeader.classList.toggle('expanded', open);
-      ctxHeader.querySelector('span:first-child').textContent = open ? 'Hide context' : 'Show full context';
+  if (clsHeader) {
+    clsHeader.addEventListener('click', () => {
+      const open = clsBody.classList.toggle('open');
+      clsHeader.classList.toggle('expanded', open);
+      clsHeader.querySelector('span:first-child').textContent = open ? 'Hide classifier output' : 'Show classifier output';
     });
   }
 
