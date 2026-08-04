@@ -203,6 +203,7 @@ def reconstruct_all_steps(
     crops_root: Path,
     output_dir: Path,
     source_file: str,
+    folder_name: str,    
     bbox_index: dict[str, list[int]] | None = None,
     reconstruct_fn=reconstruct,
 ) -> dict[Any, dict]:  # changed: value is now a dict, not bool
@@ -237,7 +238,7 @@ def reconstruct_all_steps(
 
         out_path = get_combined_output_path(output_dir, page_num, step_key, image_ids)
         cv2.imwrite(str(out_path), result)
-        blob_key = blob_combined_key(source_file, page_num, out_path.name)
+        blob_key = blob_combined_key(folder_name,source_file, page_num, out_path.name)
         get_blob_client().upload_file(out_path, blob_key)
         logger.info(f"Step {step_key}: saved {out_path}")
         status[step_key] = {"success": True, "is_combined": True, "combined_image": out_path.name}

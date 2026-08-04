@@ -45,17 +45,21 @@ _RETRYABLE_EXCEPTIONS = (
     anthropic.APITimeoutError,
 )
 
-# Matches exactly the marker format the LLM is instructed to emit.
-_IMAGE_MARKER_PATTERN = re.compile(r"🖼️\[page\s+(\d+)\s*\|\s*entry\s+(\d+)\]")
+# Format: 🖼️[doc D | page P | entry E]
+_IMAGE_MARKER_PATTERN = re.compile(
+    r"🖼️\[doc\s+(\d+)\s*\|\s*page\s+(\d+)\s*\|\s*entry\s+(\d+)\]"
+)
 
-EntryLookup = dict[tuple[int, int], dict]
+EntryLookup = dict[tuple[int, int, int], dict]
 
 
 # ---------------------------------------------------------------------------
 # Context formatting
 # ---------------------------------------------------------------------------
 
-def _format_sop_page(result: dict, language: str, entry_lookup: EntryLookup) -> str:
+def _format_sop_page(
+    result: dict, language: str, entry_lookup: EntryLookup, doc_index: int
+)-> str:
     """
     Serializes a standard SOP page (has entries) into a context block.
     Populates entry_lookup in-place for later citation resolution.
@@ -86,7 +90,8 @@ def _format_sop_page(result: dict, language: str, entry_lookup: EntryLookup) -> 
 
         has_image = bool(entry.get("image_ids") or entry.get("combined_image"))
 
-        lines = [f"[page {page_number} | entry {idx}]"]
+        lines = [f"[doc {doc_index} | page {page_number} | entry {idx}]"]
+
 
         if result.get("document_title"):
             lines.append(f"document_title: {result['document_title']}")
@@ -118,10 +123,12 @@ def _format_sop_page(result: dict, language: str, entry_lookup: EntryLookup) -> 
             lines.append(f"image_description: {entry['image_description']}")
 
         lines.append(f"has_image: {'yes' if has_image else 'no'}")
-
         blocks.append("\n".join(lines))
-        entry_lookup[(page_number, idx)] = {**entry, "_source_file": result.get("source_file", "")}
-
+        entry_lookup[(doc_index, page_number, idx)] = {
+            **entry,
+            "_source_file": result.get("source_file", ""),
+            "_folder_name": result.get("folder_name", ""),
+        }
     return "\n\n".join(blocks)
 
 
@@ -198,13 +205,15 @@ def format_context_for_llm(
     """
     entry_lookup: EntryLookup = {}
     blocks: list[str] = []
+    doc_index = 0  # incremented only for SOP pages that produce a block
 
     for result in results:
         has_entries = bool(result.get("entries"))
         has_flowchart = bool(result.get("flowchart"))
 
         if has_entries:
-            block = _format_sop_page(result, language, entry_lookup)
+            doc_index += 1
+            block = _format_sop_page(result, language, entry_lookup, doc_index)
         elif has_flowchart:
             block = _format_flowchart_page(result, language)
         else:
@@ -290,22 +299,26 @@ async def generate_answer(
 # Citation extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_citations(answer: str, entry_lookup: EntryLookup) -> list[dict]:
     """
-    Finds every 🖼️[page X | entry Y] marker in the answer, resolves each
-    to real entry data. Unresolvable markers are logged and skipped.
+    Finds every 🖼️[doc D | page P | entry E] marker in the answer, resolves
+    each to real entry data via the (doc_index, page, entry) lookup.
+    Unresolvable markers are logged and skipped.
     Flowchart pages never emit markers, so no flowchart-specific logic needed here.
     """
     citations: list[dict] = []
 
     for match in _IMAGE_MARKER_PATTERN.finditer(answer):
-        page = int(match.group(1))
-        entry_number = int(match.group(2))
-        entry = entry_lookup.get((page, entry_number))
+        doc_index = int(match.group(1))
+        page = int(match.group(2))
+        entry_number = int(match.group(3))
+        entry = entry_lookup.get((doc_index, page, entry_number))
 
         if entry is None:
             logger.warning(
-                f"LLM cited unresolvable marker: page={page} entry={entry_number}"
+                f"LLM cited unresolvable marker: "
+                f"doc={doc_index} page={page} entry={entry_number}"
             )
             continue
 
@@ -317,18 +330,18 @@ def extract_citations(answer: str, entry_lookup: EntryLookup) -> list[dict]:
             image_ref = None
 
         citations.append({
-        "marker": f"[page {page} | entry {entry_number}]",
-        "image_ref": image_ref,
-        "image_description": entry.get("image_description", ""),
-        "source_file": entry.get("_source_file", ""),
-        "page_number": page,
-    })
+            "marker": f"[doc {doc_index} | page {page} | entry {entry_number}]",
+            "image_ref": image_ref,
+            "image_description": entry.get("image_description", ""),
+            "source_file": entry.get("_source_file", ""),
+            "folder_name": entry.get("_folder_name", ""), 
+            "page_number": page,
+        })
 
     return citations
 
-
 def strip_image_markers(answer: str) -> str:
-    """Removes 🖼️ markers — for plain-text rendering paths (TTS, logs)."""
+    """Removes 🖼️[doc D | page P | entry E] markers — for plain-text rendering paths (TTS, logs)."""
     return _IMAGE_MARKER_PATTERN.sub("", answer).strip()
 
 

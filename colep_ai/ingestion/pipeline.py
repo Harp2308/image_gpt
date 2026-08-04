@@ -34,7 +34,7 @@ def is_flowchart(excel_path: Path) -> bool:
 
 
 
-def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
+def _ensure_pdf(excel_path: Path, source_file: str, folder_name: str) -> Path:
     pdf_path = settings.pdf_dir(source_file) / f"{source_file}.pdf"
     if pdf_path.exists():
         logger.info(f"Stage 1 skipped (cached) | pdf: {pdf_path}")
@@ -42,20 +42,20 @@ def _ensure_pdf(excel_path: Path, source_file: str) -> Path:
 
     ext = excel_path.suffix.lower()
     if ext in (".docx", ".doc"):
-        result_path = word_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
+        result_path = word_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file, folder_name)
     else:
-        result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file)
+        result_path = excel_to_pdf(str(excel_path), str(settings.pdf_dir(source_file)), source_file, folder_name)
 
     logger.info(f"Stage 1 done | pdf: {result_path}")
     return Path(result_path)
 
 
-def _ensure_page_image(pdf_path: Path, source_file: str, page_number: int) -> Path:
+def _ensure_page_image(pdf_path: Path, source_file: str, page_number: int, folder_name: str) -> Path:
     page_img = settings.page_images_dir(source_file) / f"{source_file}_page_{page_number}.png"
     if page_img.exists():
         return page_img
     # renders ALL pages once; cheap relative to Excel export, cached after first call
-    pdf_to_images(str(pdf_path), str(settings.page_images_dir(source_file)), source_file)
+    pdf_to_images(str(pdf_path), str(settings.page_images_dir(source_file)), source_file, folder_name)
     if not page_img.exists():
         raise RuntimeError(f"Expected page image not found after render: {page_img}")
     return page_img
@@ -64,7 +64,7 @@ def get_total_pages(excel_path: str) -> int:
     excel_path = Path(excel_path)
     source_file = normalize_filename(excel_path.stem)   # <-- fix: was raw .stem, now matches run_pipeline
     settings.ensure_doc_dirs(source_file)
-    pdf_path = _ensure_pdf(excel_path, source_file)
+    pdf_path = _ensure_pdf(excel_path, source_file, folder_name="")
     with fitz.open(pdf_path) as doc:
         return doc.page_count
 
@@ -98,11 +98,11 @@ def run_pipeline(
     settings.ensure_doc_dirs(source_file)
 
     # Stage 1: Excel -> PDF (cached, once per doc)
-    pdf_path = _ensure_pdf(excel_path, source_file)
+    pdf_path = _ensure_pdf(excel_path, source_file, folder_name)
     _log_stage("1 excel_to_pdf", t); t = time.monotonic()
 
     # Stage 2: PDF -> page PNG (cached, once per doc, all pages rendered together)
-    page_img = _ensure_page_image(pdf_path, source_file, page_number)
+    page_img = _ensure_page_image(pdf_path, source_file, page_number, folder_name)
     _log_stage("2 page_image", t); t = time.monotonic()
 
     # Stage 3: Classify — flowchart or regular SOP
@@ -142,6 +142,7 @@ def run_pipeline(
             output_dir=str(page_crops_dir),
             group_resolver=group_resolver,
             source_file=source_file, 
+            folder_name=folder_name,
         )
         marked_image_path = page_crops_dir / "marked" / f"page_{page_number}_marked.png"
         logger.info(f"Stage 4 done | crops: {len(crops_metadata)}, marked: {marked_image_path}")
@@ -172,6 +173,7 @@ def run_pipeline(
             crops_root=settings.crops_dir(source_file),
             output_dir=settings.combined_dir(source_file),
             source_file=source_file,
+             folder_name=folder_name,
             bbox_index=bbox_index,
         )
 

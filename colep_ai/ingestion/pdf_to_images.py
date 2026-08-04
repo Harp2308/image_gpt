@@ -161,6 +161,7 @@ def extract_images_from_page(
     pdf_path: str,
     page_number: int,  # 0-based
     source_file: str ,
+    folder_name: str,
     dpi: int = 200,
     output_dir: str = "page_img",
     min_size: int = 20,
@@ -274,7 +275,7 @@ def extract_images_from_page(
             logger.error(f"Failed to write crop {crop_path}" )
             continue
 
-        blob_key = blob_crop_key(source_file, page_number + 1, f"{name}.png")
+        blob_key = blob_crop_key(folder_name,source_file, page_number + 1, f"{name}.png")
         get_blob_client().upload_file(crop_path, blob_key)
 
 
@@ -308,7 +309,7 @@ def extract_images_from_page(
     if not cv2.imwrite(str(marked_path), visual):
         logger.error(f"Failed to write marked page image {marked_path}")
     else:
-        blob_key = blob_marked_key(source_file, page_number + 1, marked_path.name)
+        blob_key = blob_marked_key(folder_name,source_file, page_number + 1, marked_path.name)
         get_blob_client().upload_file(marked_path, blob_key)
     doc.close()
 

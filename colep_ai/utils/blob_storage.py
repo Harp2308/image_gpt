@@ -38,29 +38,29 @@ _CONTENT_TYPE_MAP = {
 # Blob Key Helpers — mirrors config.py local path helpers exactly
 # =================================================================
 
-def blob_pdf_key(source_file: str, filename: str) -> str:
+def blob_pdf_key(folder_name: str, source_file: str, filename: str) -> str:
     """e.g. source_file_abc/pdf/source_file_abc.pdf"""
-    return f"{source_file}/pdf/{filename}"
+    return f"{folder_name}/{source_file}/pdf/{filename}"
 
 
-def blob_page_image_key(source_file: str, filename: str) -> str:
+def blob_page_image_key(folder_name: str, source_file: str, filename: str) -> str:
     """e.g. source_file_abc/pdf_pages_images/source_file_abc_page_1.png"""
-    return f"{source_file}/pdf_pages_images/{filename}"
+    return f"{folder_name}/{source_file}/pdf_pages_images/{filename}"
 
 
-def blob_crop_key(source_file: str, page_number: int, filename: str) -> str:
+def blob_crop_key(folder_name: str, source_file: str, page_number: int, filename: str) -> str:
     """e.g. source_file_abc/crops/page_1/crops/page_1_a3f2.png"""
-    return f"{source_file}/crops/page_{page_number}/crops/{filename}"
+    return f"{folder_name}/{source_file}/crops/page_{page_number}/crops/{filename}"
 
 
-def blob_marked_key(source_file: str, page_number: int, filename: str) -> str:
+def blob_marked_key(folder_name: str, source_file: str, page_number: int, filename: str) -> str:
     """e.g. source_file_abc/crops/page_1/marked/page_1_marked.png"""
-    return f"{source_file}/crops/page_{page_number}/marked/{filename}"
+    return f"{folder_name}/{source_file}/crops/page_{page_number}/marked/{filename}"
 
 
-def blob_combined_key(source_file: str, page_number: int, filename: str) -> str:
+def blob_combined_key(folder_name: str, source_file: str, page_number: int, filename: str) -> str:
     """e.g. source_file_abc/combined/page_1/page_1_step1_uid.png"""
-    return f"{source_file}/combined/page_{page_number}/{filename}"
+    return f"{folder_name}/{source_file}/combined/page_{page_number}/{filename}"
 
 
 # =================================================================

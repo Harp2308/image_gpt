@@ -111,7 +111,7 @@ def normalize_sheet_pagination(wb, logger) -> dict:
     return report
 
 
-def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
+def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str, folder_name: str) -> str:
     pdf_dir_p = Path(pdf_dir).resolve()
     pdf_dir_p.mkdir(parents=True, exist_ok=True)
     pdf_path = str(pdf_dir_p / f"{source_file}.pdf")
@@ -158,11 +158,11 @@ def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str) -> str:
 
     logger.info(f"excel_to_pdf: {excel_path} -> {pdf_path}")
     # ── Blob upload (after local save — local copy untouched) ──
-    blob_key = blob_pdf_key(source_file, f"{source_file}.pdf")
+    blob_key = blob_pdf_key(folder_name,source_file, f"{source_file}.pdf")
     get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
 
-def word_to_pdf(word_path: str, pdf_dir: str, source_file: str) -> str:
+def word_to_pdf(word_path: str, pdf_dir: str, source_file: str, folder_name: str) -> str:
     pdf_dir_p = Path(pdf_dir).resolve()
     pdf_dir_p.mkdir(parents=True, exist_ok=True)
     pdf_path = str(pdf_dir_p / f"{source_file}.pdf")
@@ -188,9 +188,13 @@ def word_to_pdf(word_path: str, pdf_dir: str, source_file: str) -> str:
         raise RuntimeError(f"Word export failed, no PDF at {pdf_path}")
 
     logger.info(f"word_to_pdf: {word_path} -> {pdf_path}")
+    
+    # ── Blob upload (after local save — local copy untouched) ──
+    blob_key = blob_pdf_key(folder_name,source_file, f"{source_file}.pdf")
+    get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
 
-def pdf_to_images(pdf_path: str, output_dir: str, source_file: str, dpi: int = 200) -> list[str]:
+def pdf_to_images(pdf_path: str, output_dir: str, folder_name: str, source_file: str, dpi: int = 200) -> list[str]:
     output_dir_p = Path(output_dir)
     output_dir_p.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +210,7 @@ def pdf_to_images(pdf_path: str, output_dir: str, source_file: str, dpi: int = 2
             pix.save(str(img_path))
             image_paths.append(str(img_path))
             # ── Blob upload per page (after local save) ──
-            blob_key = blob_page_image_key(source_file, img_path.name)
+            blob_key = blob_page_image_key(folder_name,source_file, img_path.name)
             get_blob_client().upload_file(img_path, blob_key)
 
     finally:

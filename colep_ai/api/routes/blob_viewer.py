@@ -90,3 +90,41 @@ async def list_blobs(prefix: str, request: Request):
     </html>
     """
     return HTMLResponse(content=html)
+
+@router.delete("/delete/folder/{folder_name}")
+async def delete_by_folder(folder_name: str):
+    """Delete all blobs under a folder_name prefix."""
+    try:
+        container_client = get_blob_client()._container_client
+        blobs = list(container_client.list_blobs(name_starts_with=f"{folder_name}/"))
+        if not blobs:
+            raise HTTPException(status_code=404, detail=f"No blobs found under folder: {folder_name}")
+        for blob in blobs:
+            container_client.delete_blob(blob.name)
+        logger.info(f"Deleted {len(blobs)} blobs under folder={folder_name}")
+        return {"deleted": len(blobs), "folder_name": folder_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete folder {folder_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/delete/source/{folder_name}/{source_file}")
+async def delete_by_source_file(folder_name: str, source_file: str):
+    """Delete all blobs under folder_name/source_file prefix."""
+    try:
+        container_client = get_blob_client()._container_client
+        prefix = f"{folder_name}/{source_file}/"
+        blobs = list(container_client.list_blobs(name_starts_with=prefix))
+        if not blobs:
+            raise HTTPException(status_code=404, detail=f"No blobs found under: {prefix}")
+        for blob in blobs:
+            container_client.delete_blob(blob.name)
+        logger.info(f"Deleted {len(blobs)} blobs under {prefix}")
+        return {"deleted": len(blobs), "folder_name": folder_name, "source_file": source_file}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete source {folder_name}/{source_file}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -146,10 +146,11 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
         # _ensure_page_image renders ALL pages in one pass — also cached.
         from colep_ai.ingestion.excel_to_image import pdf_to_images
 
-        pdf_path = _ensure_pdf(excel_path, source_file)
+        pdf_path = _ensure_pdf(excel_path, source_file,folder_name)
         pdf_to_images(
             str(pdf_path),
             str(settings.page_images_dir(source_file)),
+            folder_name,
             source_file,
         )
 

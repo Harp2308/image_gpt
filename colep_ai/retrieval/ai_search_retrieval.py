@@ -159,6 +159,7 @@ def _hybrid_search(
         payload = {
             "id": r.get("id"),
             "source_file": r.get("source_file"),
+            "folder_name": r.get("folder_name", ""),
             "document_code": r.get("document_code"),
             "document_title": r.get("document_title"),
             "page_number": r.get("page_number"),
@@ -259,7 +260,12 @@ async def retrieve(
     # Step 5 — no results
     if not results:
         logger.warning(f"No results above threshold for query: '{query[:60]}'")
-        return RetrievalRejected(reason="No relevant results found for your query.")
+        no_results_msg = {
+            "pt": "Hmm, não encontrei nada relacionado com a sua pergunta. Pode tentar reformulá-la de outra forma?",
+            "en": "Hmm, I couldn't find anything related to your question. Could you try rephrasing it?",
+        }
+        return RetrievalRejected(reason=no_results_msg.get(language, no_results_msg["en"]))
+        # return RetrievalRejected(reason="No relevant results found for your query.")
 
     logger.info(
         f"Retrieval complete | language={language} | line_filter={line_number} "
@@ -271,3 +277,4 @@ async def retrieve(
         language=language,
         line_filter=line_number,
     )
+
