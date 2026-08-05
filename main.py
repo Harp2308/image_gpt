@@ -32,21 +32,38 @@ def main(excel_path:str):
             continue
 
 if __name__ == "__main__":    
-    # main(r"docs\e1.xlsx")
+
     from pathlib import Path
-    import openpyxl
 
     DOCS_DIR = Path(r"documents")
-    excel_files = list(DOCS_DIR.glob("*.xlsx"))
+
+    excel_files = [
+        # DOCS_DIR / "O01.M016.1 - Manutenção Autónoma L5 Montagem 1.xlsx",
+        DOCS_DIR / "O01.M019.1- Instrução de Manutenção Autónoma L63 1.xlsx",
+    ]
 
     for excel_file in excel_files:
         try:
             logger.info(f"Processing: {excel_file.name}")
-            # wb = openpyxl.load_workbook(excel_file, data_only=True)
-            # for ws in wb.worksheets:
-            #     print(ws.title, ws.print_area, ws.dimensions)
             main(str(excel_file))
         except Exception as e:
             logger.warning(f"❌ Failed: {excel_file.name}")
             logger.error(e)
+    # main(r"docs\e1.xlsx")
+    # from pathlib import Path
+    # import openpyxl
+
+    # DOCS_DIR = Path(r"documents")
+    # excel_files = list(DOCS_DIR.glob("*.xlsx"))
+
+    # for excel_file in excel_files:
+    #     try:
+    #         logger.info(f"Processing: {excel_file.name}")
+    #         # wb = openpyxl.load_workbook(excel_file, data_only=True)
+    #         # for ws in wb.worksheets:
+    #         #     print(ws.title, ws.print_area, ws.dimensions)
+    #         main(str(excel_file))
+    #     except Exception as e:
+    #         logger.warning(f"❌ Failed: {excel_file.name}")
+    #         logger.error(e)
     # main(r"docs\O01.T025.3 - Parâmetros do forno e PU - Linha 63 Estampagem 1.xlsx")

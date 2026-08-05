@@ -10,8 +10,7 @@ wheels/
 .venv
 
 
-outputs
-outputsv1
+
 
 *.png
 
@@ -29,3 +28,4 @@ logs
 models
 documents*
 ingestion*
+downloads
