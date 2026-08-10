@@ -28,6 +28,9 @@ from colep_ai.worker.tasks.cleanup import cleanup_task
 from colep_ai.worker.tasks.index import index_task
 from colep_ai.worker.tasks.ingest import ingest_task
 
+# from colep_ai.database.ingestion_hash_store import compute_file_hash, is_already_ingested
+from colep_ai.ingestion.utils import normalize_filename
+
 logger = get_logger(__name__)
 
 
@@ -51,7 +54,22 @@ def _dispatch_chains(job_id: str, files: list[dict]) -> None:
         local_path = f["local_path"]
         folder_name = f["folder_name"]
 
+        
+        source_file = normalize_filename(Path(local_path).stem)
+
         create_file_record(job_id, filename, folder_name)
+
+        # Hash check — skip ingest+index if content unchanged
+        # try:
+        #     file_hash = compute_file_hash(local_path)
+        #     if is_already_ingested(source_file, file_hash):
+        #         logger.info(f"[orchestrator] job={job_id} file='{filename}' hash unchanged — skipping ingest+index")
+        #         update_file_status(job_id, filename, "skipped")
+        #         cleanup_task.si(job_id, local_path, filename).apply_async()
+        #         continue
+        # except Exception as exc:
+        #     logger.warning(f"[orchestrator] job={job_id} hash check failed for '{filename}' — proceeding with ingest: {exc}")
+
 
         file_chain = chain(
             ingest_task.si(job_id, local_path, filename, folder_name),
@@ -66,8 +84,7 @@ def _dispatch_chains(job_id: str, files: list[dict]) -> None:
         group(*chains).apply_async()
         logger.info(f"[orchestrator] job={job_id} dispatched {len(chains)} chains")
     else:
-        logger.error(f"[orchestrator] job={job_id} no chains dispatched")
-
+        logger.info(f"[orchestrator] job={job_id} no chains dispatched — all files skipped (hash match)")
 
 @celery_app.task(
     name="colep_ai.worker.tasks.orchestrator.orchestrator_task",

@@ -38,10 +38,15 @@ import pythoncom
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
 from colep_ai.generation.claude_client import get_claude_client_sync
-from colep_ai.ingestion.pipeline import get_total_pages, run_pipeline, _ensure_pdf, _ensure_page_image
+from colep_ai.ingestion.pipeline1 import get_total_pages, run_pipeline, _ensure_pdf, _ensure_page_image
 from colep_ai.ingestion.utils import normalize_filename
 from colep_ai.worker.celery_app import celery_app
 from colep_ai.worker.tracker import update_file_status
+# from colep_ai.database.ingestion_hash_store import (
+#     compute_file_hash,
+#     is_already_ingested,
+#     upsert_ingestion_hash,
+# )
 
 logger = get_logger(__name__)
 
@@ -139,6 +144,11 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
         source_file = normalize_filename(excel_path.stem)
 
         settings.ensure_doc_dirs(source_file)
+        # file_hash = compute_file_hash(local_path)
+        # if is_already_ingested(source_file, file_hash):
+        #     update_file_status(job_id, filename, "ingesting_done")
+        #     logger.info(f"[ingest] job={job_id} file='{filename}' skipped — hash unchanged")
+        #     return
 
         # ── Stage 1 & 2: Excel → PDF → PNGs (sequential, win32com) ───────
         # These must complete before threading starts.
@@ -217,6 +227,7 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
             )
 
         update_file_status(job_id, filename, "ingesting_done")
+        # upsert_ingestion_hash(source_file, folder_name, file_hash)
         logger.info(f"[ingest] job={job_id} file='{filename}' ingestion complete")
 
     except Exception as exc:

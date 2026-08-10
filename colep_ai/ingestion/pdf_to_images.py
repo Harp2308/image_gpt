@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 
 import cv2
-import fitz
+import pymupdf as fitz
 import numpy as np
 
 from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
@@ -236,7 +236,7 @@ def extract_images_from_page(
     else:
         final_regions = [b["bbox"] for b in boxes]
 
-    final_regions.sort(key=lambda r: (r[1], r[0]))
+    final_regions.sort(key=lambda r: (r[1], r[0], r[3], r[2]))
 
     canvas_h, canvas_w = img.shape[:2]
     before = len(final_regions)
@@ -251,12 +251,14 @@ def extract_images_from_page(
     occupied_rects: list[tuple] = []
     saved = []
 
-    for x0, y0, x1, y1 in final_regions:
+    # for x0, y0, x1, y1 in final_regions:
+    for crop_idx, (x0, y0, x1, y1) in enumerate(final_regions):
         if x1 <= x0 or y1 <= y0:
             logger.warning(f"Skipping zero-size region on { page_label}: {(x0, y0, x1, y1)}" )
             continue
 
-        name = f"{page_label}_{uuid.uuid4().hex[:4]}"
+        # name = f"{page_label}_{uuid.uuid4().hex[:4]}"
+        name = f"{page_label}_{crop_idx}"
 
         if _is_brand_logo((x0, y0, x1, y1), canvas_w, canvas_h):
             continue

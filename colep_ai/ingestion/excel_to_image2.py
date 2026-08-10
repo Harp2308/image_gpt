@@ -4,6 +4,7 @@ IRM sensitivity-label tags are stripped from a temp copy before Excel opens it,
 eliminating the AAD sign-in dialog entirely.
 """
 
+import json
 import re
 from pathlib import Path
 import tempfile
@@ -36,31 +37,35 @@ def _is_tab_colored(ws) -> bool:
     return ws.Tab.ColorIndex != -4142
 
 def _should_skip_sheet(ws) -> bool:
+    """
+    Returns True for sheets that are archived/duplicate and should be
+    excluded from PDF export.
+
+    Rules:
+      1. Name contains "Old"      → archived version of an active sheet.
+      2. Name ends with " (N)" AND tab has no color → obsolete duplicate.
+         " (N)" sheets WITH a colored tab are Part 2 content — keep them.
+    """
     name = ws.Name
     if "Old" in name:
         return True
     if _NUMBERED_DUPLICATE_RE.search(name):
-        # (2) sheet — only skip if tab has no color
         return not _is_tab_colored(ws)
     return False
 
 
 def _has_manual_page_breaks(ws) -> bool:
-    """
-    True if a human explicitly placed a row or column page break on this
-    sheet (PageBreak.Type == xlPageBreakManual). This is the strongest
-    available signal that a sheet's multi-page layout is intentional
-    (e.g. one lubrication-point photo block per printed page), as opposed
-    to accidental overflow from an unconfigured print scale.
-    """
-    for brk in ws.HPageBreaks:
-        if brk.Type == XL_PAGE_BREAK_MANUAL:
-            return True
-    for brk in ws.VPageBreaks:
-        if brk.Type == XL_PAGE_BREAK_MANUAL:
-            return True
-    return False
-
+    try:
+        for brk in ws.HPageBreaks:
+            if brk.Type == XL_PAGE_BREAK_MANUAL:
+                return True
+        for brk in ws.VPageBreaks:
+            if brk.Type == XL_PAGE_BREAK_MANUAL:
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"_has_manual_page_breaks: COM error on sheet '{ws.Name}', assuming no manual breaks: {e}")
+        return False
 
 def normalize_sheet_pagination(wb, logger) -> dict:
     """
@@ -91,12 +96,17 @@ def normalize_sheet_pagination(wb, logger) -> dict:
 
     Hidden sheets are skipped entirely — they are excluded from PDF export
     and the expensive ps.Pages.Count COM call is unnecessary for them.
+
+    Returns the normalization report AND a page-count dict {sheet_name: page_count}
+    for visible sheets, used to build the sheet→PDF-page map.
     """
     report = {}
+    sheet_page_counts = {}  # sheet_name -> number of pages it contributes to the PDF
+
     for ws in wb.Worksheets:
 
-        # Skip sheets hidden by the _should_skip_sheet filter above —
-        # they won't appear in the PDF so there's nothing to normalize.
+        # Skip sheets hidden by _should_skip_sheet — they won't appear in
+        # the PDF so there's nothing to normalize and no pages to map.
         if ws.Visible != XL_SHEET_VISIBLE:
             report[ws.Name] = {"action": "skipped", "reason": "sheet_hidden"}
             continue
@@ -108,8 +118,16 @@ def normalize_sheet_pagination(wb, logger) -> dict:
 
         # ── Case A: manual breaks — intentional multi-page layout ─────────
         if has_manual_breaks:
-            report[ws.Name] = {"action": "skipped", "reason": "manual_breaks_present"}
-            logger.info(f"Sheet '{ws.Name}': skipped normalization (manual_breaks_present)")
+            # Pages.Count still needed for the sheet map — manual-break sheets
+            # can span multiple PDF pages and we must account for all of them.
+            page_count = ps.Pages.Count
+            sheet_page_counts[ws.Name] = page_count
+            report[ws.Name] = {
+                "action": "skipped",
+                "reason": "manual_breaks_present",
+                "pages": page_count,
+            }
+            logger.info(f"Sheet '{ws.Name}': skipped normalization (manual_breaks_present, pages={page_count})")
             continue
 
         fit_to_page_already_set = (ps.Zoom is False)
@@ -119,13 +137,15 @@ def normalize_sheet_pagination(wb, logger) -> dict:
             fit_wide = ps.FitToPagesWide
             fit_tall = ps.FitToPagesTall  # False = unconstrained, int = explicit page count
 
-            # Case B: already correct
+            # Case B: already correct — exactly 1 page tall
             if fit_tall == 1:
+                sheet_page_counts[ws.Name] = 1
                 report[ws.Name] = {
                     "action": "skipped",
                     "reason": "fit_to_page_already_set",
                     "FitToPagesWide": fit_wide,
                     "FitToPagesTall": fit_tall,
+                    "pages": 1,
                 }
                 logger.info(
                     f"Sheet '{ws.Name}': skipped normalization "
@@ -142,12 +162,13 @@ def normalize_sheet_pagination(wb, logger) -> dict:
             )
             ps.FitToPagesTall = 1
             pages_after = ps.Pages.Count
+            sheet_page_counts[ws.Name] = pages_after
             report[ws.Name] = {
                 "action": "fixed_fit_tall",
                 "FitToPagesWide": fit_wide,
                 "FitToPagesTall_before": fit_tall,
                 "FitToPagesTall_after": 1,
-                "pages_after": pages_after,
+                "pages": pages_after,
             }
             continue
 
@@ -164,25 +185,62 @@ def normalize_sheet_pagination(wb, logger) -> dict:
             ps.FitToPagesWide = 1
             ps.FitToPagesTall = False  # unconstrained tall: scale to fit width, height follows
             pages_after = ps.Pages.Count
+            sheet_page_counts[ws.Name] = pages_after
             report[ws.Name] = {
                 "action": "forced_fit",
                 "before": pages_before,
                 "after": pages_after,
+                "pages": pages_after,
             }
         else:
+            sheet_page_counts[ws.Name] = pages_before
             report[ws.Name] = {
                 "action": "untouched",
                 "before": pages_before,
                 "after": pages_before,
+                "pages": pages_before,
             }
 
-    return report
+    return report, sheet_page_counts
 
+
+def _build_sheet_map(sheet_page_counts: dict) -> dict:
+    """
+    Convert {sheet_name: page_count} (ordered, visible sheets only) into
+    {pdf_page_number: sheet_name} — 1-based, matching PDF page numbering.
+
+    Example:
+        {"Capa": 1, "Turno": 1, "Semanal": 1} ->
+        {"1": "Capa", "2": "Turno", "3": "Semanal"}
+
+    String keys are used so the JSON round-trips cleanly without int→str
+    conversion surprises.
+    """
+    sheet_map = {}
+    page_counter = 1
+    for sheet_name, count in sheet_page_counts.items():
+        for _ in range(count):
+            sheet_map[str(page_counter)] = sheet_name
+            page_counter += 1
+    return sheet_map
+
+# in excel_to_pdf, wrap the whole thing:
+TRANSIENT_COM_ERRORS = {
+    -2147418111,  # RPC_E_CALL_FAILED — Excel busy/timeout
+    -2147023174,  # RPC_S_SERVER_UNAVAILABLE
+}
+
+STRUCTURAL_COM_ERRORS = {
+    -2147352565,  # E_FAIL — Excel internal exception (corrupt file, bad refs)
+    -2147024893,  # PATH_NOT_FOUND
+    -2147024894,  # FILE_NOT_FOUND
+}
 
 def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str, folder_name: str) -> str:
     pdf_dir_p = Path(pdf_dir).resolve()
     pdf_dir_p.mkdir(parents=True, exist_ok=True)
     pdf_path = str(pdf_dir_p / f"{source_file}.pdf")
+    sheet_map_path = pdf_dir_p / f"{source_file}.sheet_map.json"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Strip IRM into a temp copy named after source_file — original never touched
@@ -195,59 +253,115 @@ def excel_to_pdf(excel_path: str, pdf_dir: str, source_file: str, folder_name: s
         excel.DisplayAlerts = False
         excel.ScreenUpdating = False   # prevents any UI redraws
         excel.EnableEvents = False     # suppresses event-driven dialogs
-
         try:
             wb = excel.Workbooks.Open(
                 stripped_path,
-                UpdateLinks=False,   # don't prompt to update external links
-                ReadOnly=True,       # read-only avoids shared-workbook Group mode
+                UpdateLinks=False,
+                ReadOnly=True,
                 IgnoreReadOnlyRecommended=True,
             )
+            logger.info(f"[excel_to_pdf] STAGE:open OK | {source_file}")
 
-            # Force out of shared/group mode if still set — this is what causes
-            # the "Group" title bar and forces a visible window
             try:
                 if wb.MultiUserEditing:
                     wb.ExclusiveAccess()
             except Exception:
-                pass  # not all workbooks support this; safe to ignore
+                pass
 
-            # ── Hide Old/duplicate sheets before export ──────────────────────
-            # ExportAsFixedFormat skips hidden sheets natively.
-            # We hide in-memory only; wb.Close(False) ensures nothing is saved back.
-            # Must run BEFORE normalize_sheet_pagination so hidden sheets are
-            # skipped from the normalization loop entirely.
+            try:
+                excel.CalculateFull()
+                logger.info(f"[excel_to_pdf] STAGE:calculate OK | {source_file}")
+            except Exception as e:
+                logger.warning(f"[excel_to_pdf] STAGE:calculate FAILED (non-fatal) | {source_file}: {e}")
 
-# ===================================================================================
             hidden_sheets = []
             for ws in wb.Worksheets:
-                 if _should_skip_sheet(ws):
+                if _should_skip_sheet(ws):
                     ws.Visible = XL_SHEET_HIDDEN
                     hidden_sheets.append(ws.Name)
             if hidden_sheets:
-                logger.info(f"Sheets hidden from PDF export for {source_file}: {hidden_sheets}")
+                logger.info(f"[excel_to_pdf] STAGE:hide_sheets | {source_file}: {hidden_sheets}")
 
-# ===================================================================================
+            logger.info(f"[excel_to_pdf] STAGE:normalize_start | {source_file}")
+            report, sheet_page_counts = normalize_sheet_pagination(wb, logger)
+            logger.info(f"[excel_to_pdf] STAGE:normalize OK | {source_file}: {report}")
 
-            # ────────────────────────────────────────────────────────────────
+            sheet_map = _build_sheet_map(sheet_page_counts)
+            sheet_map_path.write_text(
+                json.dumps(sheet_map, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logger.info(f"[excel_to_pdf] STAGE:sheet_map OK | {source_file}: {sheet_map}")
 
-            report = normalize_sheet_pagination(wb, logger)
-            logger.info(f"pagination normalization report for {source_file}: {report}")
             try:
+                logger.info(f"[excel_to_pdf] STAGE:export_start | {source_file}")
                 wb.ExportAsFixedFormat(0, pdf_path)
+                logger.info(f"[excel_to_pdf] STAGE:export OK | {source_file}")
             finally:
                 wb.Close(False)
         finally:
             excel.Quit()
+        # try:
+        #     wb = excel.Workbooks.Open(
+        #         stripped_path,
+        #         UpdateLinks=False,   # don't prompt to update external links
+        #         ReadOnly=True,       # read-only avoids shared-workbook Group mode
+        #         IgnoreReadOnlyRecommended=True,
+        #     )
+
+        #     # Force out of shared/group mode if still set — this is what causes
+        #     # the "Group" title bar and forces a visible window
+        #     try:
+        #         if wb.MultiUserEditing:
+        #             wb.ExclusiveAccess()
+        #     except Exception:
+        #         pass  # not all workbooks support this; safe to ignore
+
+        #     # ── Hide Old/duplicate sheets before export ──────────────────────
+        #     # ExportAsFixedFormat skips hidden sheets natively.
+        #     # We hide in-memory only; wb.Close(False) ensures nothing is saved back.
+        #     # Must run BEFORE normalize_sheet_pagination so hidden sheets are
+        #     # skipped from the normalization loop and excluded from the sheet map.
+        #     hidden_sheets = []
+        #     for ws in wb.Worksheets:
+        #         if _should_skip_sheet(ws):
+        #             ws.Visible = XL_SHEET_HIDDEN
+        #             hidden_sheets.append(ws.Name)
+        #     if hidden_sheets:
+        #         logger.info(f"Sheets hidden from PDF export for {source_file}: {hidden_sheets}")
+        #     # ────────────────────────────────────────────────────────────────
+
+        #     report, sheet_page_counts = normalize_sheet_pagination(wb, logger)
+        #     logger.info(f"pagination normalization report for {source_file}: {report}")
+
+        #     # ── Build and persist sheet→PDF-page map ─────────────────────────
+        #     # Built while wb is open — only opportunity to get sheet names and
+        #     # their page counts. Persisted as a sidecar JSON next to the PDF.
+        #     # Same lifecycle as the PDF cache: if PDF exists, map exists.
+        #     sheet_map = _build_sheet_map(sheet_page_counts)
+        #     sheet_map_path.write_text(
+        #         json.dumps(sheet_map, ensure_ascii=False, indent=2),
+        #         encoding="utf-8",
+        #     )
+        #     logger.info(f"Sheet map written: {sheet_map_path} | {sheet_map}")
+        #     # ────────────────────────────────────────────────────────────────
+
+        #     try:
+        #         wb.ExportAsFixedFormat(0, pdf_path)
+        #     finally:
+        #         wb.Close(False)
+        # finally:
+        #     excel.Quit()
 
     if not Path(pdf_path).exists():
         raise RuntimeError(f"Excel export failed, no PDF at {pdf_path}")
 
     logger.info(f"excel_to_pdf: {excel_path} -> {pdf_path}")
     # ── Blob upload (after local save — local copy untouched) ──
-    blob_key = blob_pdf_key(folder_name,source_file, f"{source_file}.pdf")
+    blob_key = blob_pdf_key(folder_name, source_file, f"{source_file}.pdf")
     get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
+
 
 def word_to_pdf(word_path: str, pdf_dir: str, source_file: str, folder_name: str) -> str:
     pdf_dir_p = Path(pdf_dir).resolve()
@@ -275,11 +389,12 @@ def word_to_pdf(word_path: str, pdf_dir: str, source_file: str, folder_name: str
         raise RuntimeError(f"Word export failed, no PDF at {pdf_path}")
 
     logger.info(f"word_to_pdf: {word_path} -> {pdf_path}")
-    
+
     # ── Blob upload (after local save — local copy untouched) ──
-    blob_key = blob_pdf_key(folder_name,source_file, f"{source_file}.pdf")
+    blob_key = blob_pdf_key(folder_name, source_file, f"{source_file}.pdf")
     get_blob_client().upload_file(pdf_path, blob_key)
     return pdf_path
+
 
 def pdf_to_images(pdf_path: str, output_dir: str, folder_name: str, source_file: str, dpi: int = 200) -> list[str]:
     output_dir_p = Path(output_dir)
@@ -297,7 +412,7 @@ def pdf_to_images(pdf_path: str, output_dir: str, folder_name: str, source_file:
             pix.save(str(img_path))
             image_paths.append(str(img_path))
             # ── Blob upload per page (after local save) ──
-            blob_key = blob_page_image_key(folder_name,source_file, img_path.name)
+            blob_key = blob_page_image_key(folder_name, source_file, img_path.name)
             get_blob_client().upload_file(img_path, blob_key)
 
     finally:
@@ -305,3 +420,4 @@ def pdf_to_images(pdf_path: str, output_dir: str, folder_name: str, source_file:
 
     logger.info(f"pdf_to_images: {pdf_path} -> {len(image_paths)} pages")
     return image_paths
+

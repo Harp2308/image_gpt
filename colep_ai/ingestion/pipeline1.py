@@ -16,7 +16,7 @@ import re
 import time
 
 from colep_ai.core.config import settings
-from colep_ai.ingestion.excel_to_image import excel_to_pdf, pdf_to_images, word_to_pdf
+from colep_ai.ingestion.excel_to_image2 import excel_to_pdf, pdf_to_images, word_to_pdf
 from colep_ai.ingestion.ocr_extractor import image_to_vision_json
 from colep_ai.ingestion.pdf_to_images import extract_images_from_page
 from colep_ai.ingestion.xlsx_group_resolver import XlsxGroupResolver
@@ -26,16 +26,32 @@ from colep_ai.ingestion.utils import normalize_filename,_log_stage,normalize_res
 from colep_ai.core.logger import get_logger
 from colep_ai.ingestion.flowchart_extractor import extract_flowchart
 from colep_ai.ingestion.map_extractor import extract_map_zones
+from colep_ai.ingestion.page_classifier import classify_page
 
 logger = get_logger("Ingestion_pipeline")
 
 
-def is_flowchart(excel_path: Path) -> bool:
-    return "fluxograma" in excel_path.stem.lower()
+def _load_sheet_name(source_file: str, page_number: int) -> str:
+    """
+    Read the sheet_page_map sidecar JSON built by excel_to_pdf and return
+    the sheet name for the given PDF page number.
+
+    Returns empty string if the map doesn't exist (e.g. Word documents,
+    cached PDFs from before this feature, or any non-Excel source).
+    The empty string is safe — it means 'sheet_name' in result.json will
+    be "" rather than missing, which indexers handle without change.
+    """
+    sheet_map_path = settings.pdf_dir(source_file) / f"{source_file}.sheet_map.json"
+    if not sheet_map_path.exists():
+        return ""
+    try:
+        sheet_map = json.loads(sheet_map_path.read_text(encoding="utf-8"))
+        return sheet_map.get(str(page_number), "")
+    except Exception:
+        return ""
 
 
-def is_map(excel_path: Path) -> bool:
-    return "mapa" in excel_path.stem.lower()
+
 
 
 
@@ -110,10 +126,16 @@ def run_pipeline(
     page_img = _ensure_page_image(pdf_path, source_file, page_number, folder_name)
     _log_stage("2 page_image", t); t = time.monotonic()
 
-    # Stage 3: Classify — flowchart or regular SOP
+    # Stage 3: Classify page type via LLM vision classifier
     out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
+    page_route = classify_page(str(page_img), claude_client)
+    _log_stage("3 page_classification", t); t = time.monotonic()
 
-    if is_flowchart(excel_path):
+    if page_route == "skip":
+        logger.info(f"Stage 3 | skip — empty form/checklist, no extraction | page={page_number}")
+        return {"page_number": page_number, "source_file": source_file, "route": "skip"}
+
+    if page_route == "flowchart":
         logger.info("Stage 3 | flowchart detected — routing to flowchart extractor")
 
         # Stage 4 (flowchart): page image + filename -> LLM -> JSON
@@ -126,13 +148,14 @@ def run_pipeline(
         
         _log_stage("4 flowchart_extraction", t); t = time.monotonic()
         normalize_result_schema(result)
+        result["sheet_name"] = _load_sheet_name(source_file, page_number)
         logger.info(f"line_number={result['line_number']} | source_file={source_file}")
-        
+
         logger.info(f"Saved: {out_path}")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
-    elif is_map(excel_path):
+    elif page_route == "map":
         logger.info("Stage 3 | map detected — routing to map extractor")
 
         # Stage 4: CV crops (same as SOP — map pages have cropped icons)
@@ -185,14 +208,15 @@ def run_pipeline(
         result["line_number"] = extract_line_number(source_file)
         result["page_image_id"] = [page_img.name]
         normalize_result_schema(result)
+        result["sheet_name"] = _load_sheet_name(source_file, page_number)
         logger.info(f"line_number={result['line_number']} | source_file={source_file}")
 
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved: {out_path}")
 
-    else:
-        logger.info("Stage 3 | regular SOP — routing to standard pipeline")
+    else:  # page_route == "sop"
+        logger.info("Stage 3 | sop — routing to standard pipeline")
 
         # Stage 4: CV crops with xlsx-group-aware union merge
         page_crops_dir = settings.crops_dir(source_file) / f"page_{page_number}"
@@ -258,8 +282,9 @@ def run_pipeline(
         result["source_file"] = source_file
         result["folder_name"] = folder_name
         result["line_number"] = extract_line_number(source_file)
+        result["sheet_name"] = _load_sheet_name(source_file, page_number)
         logger.info(f"line_number={result['line_number']} | source_file={source_file}")
-        
+
         logger.info(f"Saved: {out_path}")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)

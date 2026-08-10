@@ -540,10 +540,18 @@
       answerHtml = answerHtml.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
       // Linkify source file lines: "File: SomeName" → clickable PDF link
-      answerHtml = answerHtml.replace(
-        /File: ([^\s<,]+)/g,
-        (_, fname) => `File: <a href="/outputs/${fname}/pdf/${fname}.pdf" target="_blank" style="color:var(--accent);text-decoration:underline;">${fname}</a>`
-      );
+      if (data.citations?.length) {
+        data.citations.forEach(cit => {
+          if (!cit.pdf_url) return;
+
+          const escapedName = cit.source_file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+          answerHtml = answerHtml.replace(
+            new RegExp(`File:\\s*${escapedName}`, "g"),
+            `File: <a href="${cit.pdf_url}" target="_blank" style="color:var(--accent);text-decoration:underline;">${cit.source_file}</a>`
+          );
+        });
+      }
       document.getElementById(pendingId).innerHTML = answerHtml;
       document.getElementById(pendingId).classList.remove('msg-muted');
     } catch(e) {

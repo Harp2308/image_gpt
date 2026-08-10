@@ -160,8 +160,10 @@ def _hybrid_search(
             "id": r.get("id"),
             "source_file": r.get("source_file"),
             "folder_name": r.get("folder_name", ""),
+            "sheet_name": r.get("sheet_name", ""),
             "document_code": r.get("document_code"),
             "document_title": r.get("document_title"),
+            "periodicity": r.get("periodicity", ""),
             "page_number": r.get("page_number"),
             "line_number": r.get("line_number", []),
             "page_image_ids": _safe_json_loads(r.get("page_image_ids", "[]")),
@@ -171,6 +173,7 @@ def _hybrid_search(
             "entries": _safe_json_loads(r.get("entries", "[]")),
             "legend": _safe_json_loads(r.get("legend", "[]")),
             "flowchart": _safe_json_loads(r.get("flowchart", "{}")),
+            "map": _safe_json_loads(r.get("map", "{}")),
             "score": round(score, 6),
         }
         hits.append(payload)

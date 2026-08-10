@@ -36,6 +36,12 @@ def normalize_result_schema(result: dict) -> dict:
     if result.get("flowchart"):
         result.setdefault("legend", {})
         result.setdefault("entries", [])
+        result.setdefault("map", {})
+    elif result.get("map"):
+        result.setdefault("flowchart", {})
+        result.setdefault("legend", {})
+        result.setdefault("entries", [])
     else:
         result.setdefault("flowchart", {})
+        result.setdefault("map", {})
     return result

@@ -71,7 +71,9 @@ class QueryRequest(BaseModel):
 
 class Citation(BaseModel):
     marker: str
+    source_file: str
     image_url: str | None
+    pdf_url: str | None = None
     image_description: str
 
 
@@ -108,6 +110,10 @@ def _resolve_image_blob_url(
     if image_ref.endswith(".png") and "_" in image_ref:
         return f"/blob/view/{prefix}/combined/page_{page_number}/{image_ref}"
     return f"/blob/view/{prefix}/crops/page_{page_number}/crops/{image_ref}.png"
+
+def _resolve_pdf_blob_url(source_file: str, folder_name: str = "") -> str:
+    prefix = f"{folder_name}/{source_file}" if folder_name else source_file
+    return f"/blob/view/{prefix}/pdf/{source_file}.pdf"
 
 async def _check_query(
     query: str,
@@ -378,6 +384,7 @@ async def query(
     check = await _check_query(req.query, openai_client, history_turns)
     intent = check.get("intent")
     classifier_response = {k: v for k, v in check.items() if k != "_tokens"}
+    logger.info(f"Classifier result | {classifier_response}")
     _log_stage("check_query", stage_start)
 
     # ------------------------------------------------------------------
@@ -492,14 +499,14 @@ async def query(
     # ------------------------------------------------------------------
     # 5b. Rerank — skip if query is already line-filtered (retrieval is precise)
     # ------------------------------------------------------------------
-    if not retrieval_response.line_filter:
-        stage_start = time.monotonic()
-        retrieval_response = RetrievalResponse(
-            results=await rerank(req.query, retrieval_response.results),
-            language=retrieval_response.language,
-            line_filter=retrieval_response.line_filter,
-        )
-        _log_stage("rerank", stage_start)
+    # if not retrieval_response.line_filter:
+    stage_start = time.monotonic()
+    retrieval_response = RetrievalResponse(
+        results=await rerank(req.query, retrieval_response.results),
+        language=retrieval_response.language,
+        line_filter=retrieval_response.line_filter,
+    )
+    _log_stage("rerank", stage_start)
 
     # ------------------------------------------------------------------
     # 6. Build history messages for generation
@@ -538,11 +545,16 @@ async def query(
     citations = [
         Citation(
             marker=c["marker"],
-            # image_url=_resolve_image_url(
-            #     c["image_ref"], c["source_file"], c["page_number"]
-            # ),
+            source_file=c["source_file"],
             image_url=_resolve_image_blob_url(
-                c["image_ref"], c["source_file"], c["page_number"], c.get("folder_name", "")
+                c["image_ref"],
+                c["source_file"],
+                c["page_number"],
+                c.get("folder_name", ""),
+            ),
+            pdf_url=_resolve_pdf_blob_url(
+                c["source_file"],
+                c.get("folder_name", ""),
             ),
             image_description=c.get("image_description", ""),
         )

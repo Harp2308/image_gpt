@@ -33,6 +33,8 @@ from celery.signals import worker_ready
 @worker_ready.connect
 def on_worker_ready(sender, **kwargs):
     from colep_ai.database.azure_search_client import ensure_page_index, get_index_client
+    # from colep_ai.database.ingestion_hash_store import ensure_ingested_files_container
+    # ensure_ingested_files_container()
     ensure_page_index(get_index_client())
 # ---------------------------------------------------------------------------
 # Queue and exchange definitions

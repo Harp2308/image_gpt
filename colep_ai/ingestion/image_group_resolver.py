@@ -83,6 +83,22 @@ STEP_MAPPING_TOOL = {
         "type": "string",
         "description": "Document code shown on page, e.g. O001.M012.1. Empty string if none visible."
       },
+      "periodicity": {
+        "type": "string",
+        "description": "Periodicity of the task as written on the page header, e.g. '1x por mês', '1x de 2 em 2 semanas'. Empty string if not present."
+      },
+      "total_time_running": {
+        "type": "string",
+        "description": "Total execution time while running (Funcionamento) from the page header, e.g. '00:01:00'. Empty string if not present."
+      },
+      "total_time_stopped": {
+        "type": "string",
+        "description": "Total execution time while stopped (Parada) from the page header, e.g. '00:51:00'. Empty string if not present."
+      },
+      "notes": {
+        "type": "string",
+        "description": "Notes block from the page header verbatim. Empty string if not present."
+      },
       "legend": {
         "type": "array",
         "description": "Symbol-to-meaning mapping if the page has a legend box. Empty array if none.",
@@ -160,6 +176,9 @@ Sub-images available:
 {meta_lines}
 
 Your job:
+0. Read the page header block (usually at the top, often bordered or color-highlighted).
+   Capture Periodicidade, Tempo total da execução (Funcionamento and Parada separately),
+   and Notas exactly as written. Leave empty string if not present.
 1. Read the full page image carefully, including all entries on the page —
    these may be numbered steps ("1", "2", "3"...), lettered points ("A",
    "B", "C"...), or rows of a table. Also read any legend box that explains
@@ -220,7 +239,14 @@ IMPORTANT: All string values in your tool call must use valid JSON escaping.
 Any double-quote character that appears inside a string value must be escaped as \".
 
 Tone: Technical, precise, objective. Do not infer beyond what is visually evident.
-Length: 60-100 words. Be thorough but concise.
+
+Length: Scale with image count and content complexity.
+- 1 image: 40-60 words
+- 2 images: 60-90 words  
+- 3+ images or a schematic + photos mix: 90-150 words
+- If a schematic/overview image is present alongside photos, dedicate 1-2 sentences specifically to what the schematic shows (zones, layout, spatial context) before describing the photos.
+
+Never pad. If the content is simple, stay short.
    
 Call the `record_step_image_mapping` tool with your final structured answer.
 """

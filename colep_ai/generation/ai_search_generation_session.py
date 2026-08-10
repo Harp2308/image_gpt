@@ -49,7 +49,7 @@ _RETRYABLE_EXCEPTIONS = (
 _IMAGE_MARKER_PATTERN = re.compile(
     r"🖼️\[doc\s+(\d+)\s*\|\s*page\s+(\d+)\s*\|\s*entry\s+(\d+)\]"
 )
-
+_MAP_MARKER_PATTERN = re.compile(r"🖼️\[page\s+(\d+)\s*\|\s*map\]")
 EntryLookup = dict[tuple[int, int, int], dict]
 
 
@@ -99,6 +99,10 @@ def _format_sop_page(
             lines.append(f"document_code: {result['document_code']}")
         if result.get("source_file"):
             lines.append(f"source_file: {result['source_file']}")
+        if result.get("periodicity"):
+            lines.append(f"periodicity: {result['periodicity']}")
+        if result.get("sheet_name"):
+            lines.append(f"sheet_name: {result['sheet_name']}")
 
         line_number = result.get("line_number")
         if line_number is not None:
@@ -193,6 +197,38 @@ def _format_flowchart_page(result: dict, language: str) -> str:
 
     return "\n".join(lines)
 
+def _format_map_page(result: dict, language: str) -> str:
+    map_data = result.get("map", {})
+    if not map_data:
+        return ""
+
+    page_number = result.get("page_number")
+    lines = [f"[page {page_number} | map]"]
+
+    if result.get("document_title"):
+        lines.append(f"document_title: {result['document_title']}")
+    if result.get("document_code"):
+        lines.append(f"document_code: {result['document_code']}")
+    if result.get("source_file"):
+        lines.append(f"source_file: {result['source_file']}")
+    if result.get("line_number"):
+        lines.append(f"line_number: {result['line_number']}")
+
+    if map_data.get("map_area"):
+        lines.append(f"map_area: {map_data['map_area']}")
+
+    desc_key = "map_description" if language == "pt" else "map_description_en"
+    description = map_data.get(desc_key) or map_data.get("map_description", "")
+    if description:
+        lines.append(f"map_description: {description}")
+
+    map_image = map_data.get("combined_image", "")
+    if map_image:
+        lines.append("has_image: yes")
+        lines.append(f"map_image: {map_image}")
+    else:
+        lines.append("has_image: no")
+    return "\n".join(lines)
 
 def format_context_for_llm(
     results: list[dict], language: str
@@ -204,18 +240,27 @@ def format_context_for_llm(
     citation resolution.
     """
     entry_lookup: EntryLookup = {}
+    map_lookup: dict[int, dict] = {}
     blocks: list[str] = []
     doc_index = 0  # incremented only for SOP pages that produce a block
 
     for result in results:
         has_entries = bool(result.get("entries"))
         has_flowchart = bool(result.get("flowchart"))
-
+        has_map = bool(result.get("map"))
         if has_entries:
             doc_index += 1
             block = _format_sop_page(result, language, entry_lookup, doc_index)
         elif has_flowchart:
             block = _format_flowchart_page(result, language)
+        elif has_map:
+            block = _format_map_page(result, language)
+            if block:
+                map_lookup[result.get("page_number")] = {
+                    "map": result.get("map", {}),
+                    "_source_file": result.get("source_file", ""),
+                    "_folder_name": result.get("folder_name", ""),
+                }
         else:
             logger.warning(
                 f"Result has neither entries nor flowchart — skipping | "
@@ -226,7 +271,7 @@ def format_context_for_llm(
         if block:
             blocks.append(block)
 
-    return "\n\n".join(blocks), entry_lookup
+    return "\n\n".join(blocks), entry_lookup, map_lookup
 
 # ---------------------------------------------------------------------------
 # Generation
@@ -300,7 +345,7 @@ async def generate_answer(
 # ---------------------------------------------------------------------------
 
 
-def extract_citations(answer: str, entry_lookup: EntryLookup) -> list[dict]:
+def extract_citations(answer: str, entry_lookup: EntryLookup, map_lookup: dict | None = None) -> list[dict]:
     """
     Finds every 🖼️[doc D | page P | entry E] marker in the answer, resolves
     each to real entry data via the (doc_index, page, entry) lookup.
@@ -338,6 +383,19 @@ def extract_citations(answer: str, entry_lookup: EntryLookup) -> list[dict]:
             "page_number": page,
         })
 
+    for match in _MAP_MARKER_PATTERN.finditer(answer):
+        page = int(match.group(1))
+        # find the map result for this page
+        map_result = (map_lookup or {}).get(page)
+        if map_result:
+            citations.append({
+                "marker": f"[page {page} | map]",
+                "image_ref": map_result.get("map", {}).get("combined_image"),
+                "image_description": map_result.get("map", {}).get("map_image_description", ""),
+                "source_file": map_result.get("_source_file", ""),
+                "folder_name": map_result.get("_folder_name", ""),
+                "page_number": page,
+            })
     return citations
 
 def strip_image_markers(answer: str) -> str:
@@ -368,7 +426,7 @@ async def generate_from_retrieval(
             "results": list[dict],
         }
     """
-    context, entry_lookup = format_context_for_llm(
+    context, entry_lookup, map_lookup = format_context_for_llm(
         retrieval_response.results, retrieval_response.language
     )
 
@@ -384,7 +442,7 @@ async def generate_from_retrieval(
     logger.info(f"RAW ANSWER:\n{repr(answer)}")
     strip_image_markers(answer)
 
-    citations = extract_citations(answer, entry_lookup)
+    citations = extract_citations(answer, entry_lookup, map_lookup)
 
     # log_query(
     #     question=query,

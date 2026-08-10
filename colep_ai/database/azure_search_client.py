@@ -114,6 +114,18 @@ def _build_index() -> SearchIndex:
             facetable=False,
         ),
         SimpleField(
+            name="sheet_name",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            retrievable=True,
+        ),
+        SimpleField(
+            name="periodicity",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            retrievable=True,
+        ),
+        SimpleField(
             name="document_code",
             type=SearchFieldDataType.String,
             filterable=True,
@@ -173,6 +185,11 @@ def _build_index() -> SearchIndex:
         ),
         SimpleField(
             name="flowchart",
+            type=SearchFieldDataType.String,   # JSON-serialised dict
+            filterable=False,
+        ),
+         SimpleField(
+            name="map",
             type=SearchFieldDataType.String,   # JSON-serialised dict
             filterable=False,
         ),
@@ -250,6 +267,8 @@ def upsert_page_chunks(
                 # payload scalars
                 "folder_name": payload.get("folder_name", ""),
                 "source_file": payload.get("source_file", ""),
+                "sheet_name": payload.get("sheet_name", ""),
+                "periodicity": payload.get("periodicity", ""),
                 "document_code": payload.get("document_code", ""),
                 "document_title": payload.get("document_title", ""),
                 "page_number": payload.get("page_number", 0),
@@ -263,6 +282,7 @@ def upsert_page_chunks(
                 "entries": json.dumps(payload.get("entries", []), ensure_ascii=False),
                 "legend": json.dumps(payload.get("legend", []), ensure_ascii=False),
                 "flowchart": json.dumps(payload.get("flowchart", {}), ensure_ascii=False),
+                "map": json.dumps(payload.get("map", {}), ensure_ascii=False),
                 # vectors
                 "vector_text_pt": v_pt,
                 "vector_text_en": v_en,

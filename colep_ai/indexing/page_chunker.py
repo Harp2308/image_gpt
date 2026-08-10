@@ -20,10 +20,14 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
     # flowchart block lives under data["flowchart"], not data directly
     flowchart = data.get("flowchart", {})
     nodes = flowchart.get("nodes", [])
+    map_data = data.get("map", {})
+    sheet_name = data.get("sheet_name", "")
 
     document_code = data.get("document_code", "")
-    document_title = data.get("document_title", "").strip()
-
+    # document_title = data.get("document_title", "").strip()
+    # periodicity = data.get("periodicity", "")
+    document_title = (data.get("document_title") or "").strip()
+    periodicity = data.get("periodicity") or ""
     text_pt_parts = [document_title] if document_title else []
     text_en_parts = [document_title] if document_title else []
     image_desc_parts = []
@@ -33,9 +37,12 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             logger.warning(f"Skipping malformed entry (not dict) in {source_file} page {page_number}: {entry!r}")
             continue
 
-        pt = entry.get("entry_text", "").strip()
-        en = entry.get("entry_text_en", "").strip()
-        img = entry.get("image_description", "").strip()
+        # pt = entry.get("entry_text", "").strip()
+        # en = entry.get("entry_text_en", "").strip()
+        # img = entry.get("image_description", "").strip()
+        pt = (entry.get("entry_text") or "").strip()
+        en = (entry.get("entry_text_en") or "").strip()
+        img = (entry.get("image_description") or "").strip()
 
         # table row fallback
         if not pt:
@@ -86,6 +93,18 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
                 text_en_parts.append(node_labels)
                 logger.info(f"Flowchart node labels appended for {source_file} page {page_number}: {len(nodes)} nodes")
 
+    # map descriptions — always appended when present (not a fallback)
+    if map_data:
+        map_pt = map_data.get("map_description", "").strip()
+        map_en = map_data.get("map_description_en", "").strip()
+        map_img = map_data.get("map_image_description", "").strip()
+        if map_pt:
+            text_pt_parts.append(map_pt)
+        if map_en:
+            text_en_parts.append(map_en)
+        if map_img:
+            image_desc_parts.append(map_img)
+
 
     # line_number: always store as JSON string — list[int] or "" both serialise cleanly
     line_number = data.get("line_number") or []
@@ -102,12 +121,15 @@ def chunk_page_json_full(data: dict, source_file: str, page_number: int) -> dict
             "page_number": page_number,
             "folder_name": data.get("folder_name", ""),
             "document_title": document_title,
+            "periodicity": periodicity,
             "document_code": document_code,
             "line_number": line_number,            # list[int] e.g. [28,34,95] or []
             "page_image_ids": data.get("page_image_ids", []),
             "entries": entries,
             "legend": legend,
             "flowchart": flowchart,
+            "map": map_data,
+            "sheet_name": sheet_name,
         },
     }
 
