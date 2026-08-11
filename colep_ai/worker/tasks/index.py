@@ -70,10 +70,9 @@ def index_task(self, job_id: str, filename: str, folder_name: str = "") -> None:
 
         result_files = list(results_dir.glob("*_result.json"))
         if not result_files:
-            raise RuntimeError(
-                f"No result JSON files found in {results_dir}. "
-                f"Ingestion produced no output."
-            )
+            logger.warning(f"[index] job={job_id} file='{filename}' no result JSONs — marking skipped")
+            update_file_status(job_id, filename, "skipped", reason = "no result JSONs produced — all pages classified as skip by page classifier" )
+            return
 
         logger.info(
             f"[index] job={job_id} file='{filename}' "

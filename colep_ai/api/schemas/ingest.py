@@ -49,6 +49,7 @@ FileStatus = Literal[
     "indexing",
     "indexing_done",
     "done",
+    "skipped",
     "failed",
 ]
 
@@ -58,6 +59,7 @@ class FileStatusRecord(BaseModel):
     folder_name: str = ""
     status: FileStatus
     error: str | None = None
+    reason: str | None = None 
     started_at: str | None = None
     completed_at: str | None = None
 

@@ -96,6 +96,7 @@ async def get_ingestion_status(job_id: str):
             folder_name=rec.get("folder_name", ""), 
             status=rec["status"],
             error=rec.get("error"),
+            reason=rec.get("reason"),
             started_at=rec.get("started_at"),
             completed_at=rec.get("completed_at"),
         )

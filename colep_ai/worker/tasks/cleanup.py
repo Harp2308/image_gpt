@@ -25,6 +25,7 @@ from pathlib import Path
 from colep_ai.core.logger import get_logger
 from colep_ai.worker.celery_app import celery_app
 from colep_ai.worker.tracker import (
+    get_file_status, 
     record_file_done,
     record_file_failed,
     update_file_status,
@@ -92,7 +93,9 @@ def cleanup_task(
             )
         else:
             # Full chain succeeded — mark file done and increment done counter
-            update_file_status(job_id, filename, "done")
+            current_status = get_file_status(job_id, filename)
+            if current_status != "skipped":
+                update_file_status(job_id, filename, "done")
             record_file_done(job_id)
             logger.info(
                 f"[cleanup] job={job_id} file='{filename}' recorded as done"

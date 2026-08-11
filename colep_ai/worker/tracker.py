@@ -43,6 +43,7 @@ FileStatus = Literal[
     "ingesting_done",
     "indexing",
     "done",
+    "skipped",
     "failed",
 ]
 
@@ -191,6 +192,7 @@ def create_file_record(job_id: str, filename: str, folder_name: str = "") -> Non
             "filename": filename,
             "folder_name": folder_name,  
             "status": "pending",
+            "reason": None,
             "error": None,
             "started_at": None,
             "completed_at": None,
@@ -205,6 +207,7 @@ def update_file_status(
     filename: str,
     status: FileStatus,
     error: str | None = None,
+    reason: str | None = None,
 ) -> None:
     try:
         r = _get_redis()
@@ -217,9 +220,11 @@ def update_file_status(
         record["status"] = status
         if error is not None:
             record["error"] = error
+        if reason is not None:
+            record["reason"] = reason
         if status == "ingesting" and record.get("started_at") is None:
             record["started_at"] = _now()
-        if status in ("done", "failed"):
+        if status in ("done", "failed", "skipped"):
             record["completed_at"] = _now()
         r.set(key, json.dumps(record), ex=TTL)
     except Exception:
@@ -321,3 +326,14 @@ def _increment_and_check(job_id: str, done: bool) -> None:
             
     except Exception:
         logger.exception(f"[tracker] _increment_and_check failed for {job_id}")
+
+def get_file_status(job_id: str, filename: str) -> str | None:
+    try:
+        r = _get_redis()
+        raw = r.get(_file_key(job_id, filename))
+        if raw is None:
+            return None
+        return json.loads(raw).get("status")
+    except Exception:
+        logger.exception(f"[tracker] get_file_status failed for {job_id}/{filename}")
+        return None
