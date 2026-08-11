@@ -83,6 +83,19 @@ RULE 6 — Rephrase the query into a fully standalone question ONLY when is_foll
   - Be in the same language as the original query
   - Preserve the exact intent — do not add assumptions or expand scope
 
+RULE 7 — Clarification response detection.
+  If the most recent assistant turn was a clarification question (asked the user which line 
+  they are working on), AND the current user message is a short line reference (e.g. "line 5", 
+  "linha 5", "5"), then:
+  - Set is_followup = true
+  - Reconstruct rephrased_query by combining the ORIGINAL user question (found earlier in 
+    history) with the line number just provided.
+  - Example: original question was "Who is responsible for verifying the oil level?" 
+    and user replies "line 5" → rephrased_query = "Who is responsible for verifying the 
+    oil level on Line 5?"
+  - Set followup_line_number to the line number the user just specified.
+  - Set followup_source_file to empty string — let retrieval run fresh with the line filter.
+  
 ════════════════════════════════════════
 OUTPUT FORMAT — Return ONLY valid JSON. No explanation. No preamble.
 ════════════════════════════════════════

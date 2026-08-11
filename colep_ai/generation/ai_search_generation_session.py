@@ -44,6 +44,9 @@ _RETRYABLE_EXCEPTIONS = (
     anthropic.APIConnectionError,
     anthropic.APITimeoutError,
 )
+# ---------------------------------------------------------------------------
+# helpers for image and pdf marker resolution
+# ---------------------------------------------------------------------------
 
 # Format: 🖼️[doc D | page P | entry E]
 _IMAGE_MARKER_PATTERN = re.compile(
@@ -51,6 +54,9 @@ _IMAGE_MARKER_PATTERN = re.compile(
 )
 _MAP_MARKER_PATTERN = re.compile(r"🖼️\[page\s+(\d+)\s*\|\s*map\]")
 EntryLookup = dict[tuple[int, int, int], dict]
+
+def _build_pdf_url(folder_name: str, source_file: str) -> str:
+    return f"/blob/view/{folder_name}/{source_file}/pdf/{source_file}.pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +351,7 @@ async def generate_answer(
 # ---------------------------------------------------------------------------
 
 
-def extract_citations(answer: str, entry_lookup: EntryLookup, map_lookup: dict | None = None) -> list[dict]:
+def extract_citations(answer: str, entry_lookup: EntryLookup, map_lookup: dict | None = None, results: list[dict] | None = None) -> list[dict]:
     """
     Finds every 🖼️[doc D | page P | entry E] marker in the answer, resolves
     each to real entry data via the (doc_index, page, entry) lookup.
@@ -396,6 +402,26 @@ def extract_citations(answer: str, entry_lookup: EntryLookup, map_lookup: dict |
                 "folder_name": map_result.get("_folder_name", ""),
                 "page_number": page,
             })
+     # Fallback: no image markers — build source-level citations from results
+    
+    if not citations and results:
+        seen: set[str] = set()
+        for r in results:
+            sf = r.get("source_file", "")
+            fn = r.get("folder_name", "")
+            if not sf or sf in seen:
+                continue
+            seen.add(sf)
+            citations.append({
+                "marker": None,
+                "image_ref": None,
+                "image_description": "",
+                "source_file": sf,
+                "folder_name": fn,
+                "page_number": r.get("page_number"),
+                "pdf_url": _build_pdf_url(fn, sf) if fn and sf else None,
+            })
+
     return citations
 
 def strip_image_markers(answer: str) -> str:
@@ -442,7 +468,7 @@ async def generate_from_retrieval(
     logger.info(f"RAW ANSWER:\n{repr(answer)}")
     strip_image_markers(answer)
 
-    citations = extract_citations(answer, entry_lookup, map_lookup)
+    citations = extract_citations(answer, entry_lookup, map_lookup, results=retrieval_response.results)
 
     # log_query(
     #     question=query,

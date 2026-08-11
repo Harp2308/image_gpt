@@ -70,7 +70,7 @@ class QueryRequest(BaseModel):
 
 
 class Citation(BaseModel):
-    marker: str
+    marker: str | None = None
     source_file: str
     image_url: str | None
     pdf_url: str | None = None
@@ -502,7 +502,7 @@ async def query(
     # if not retrieval_response.line_filter:
     stage_start = time.monotonic()
     retrieval_response = RetrievalResponse(
-        results=await rerank(req.query, retrieval_response.results),
+        results=await rerank(effective_query, retrieval_response.results),
         language=retrieval_response.language,
         line_filter=retrieval_response.line_filter,
     )
@@ -520,7 +520,7 @@ async def query(
     try:
         generation_output = await generate_from_retrieval(
             claude_client=claude_client,
-            query=req.query,
+            query=effective_query,
             retrieval_response=retrieval_response,
             history_messages=history_messages,
         )
@@ -552,10 +552,10 @@ async def query(
                 c["page_number"],
                 c.get("folder_name", ""),
             ),
-            pdf_url=_resolve_pdf_blob_url(
-                c["source_file"],
-                c.get("folder_name", ""),
-            ),
+             pdf_url=c.get("pdf_url") or _resolve_pdf_blob_url(
+                    c["source_file"],
+                    c.get("folder_name", ""),
+                ),
             image_description=c.get("image_description", ""),
         )
         for c in generation_output["citations"]
