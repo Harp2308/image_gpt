@@ -22,7 +22,7 @@ _loguru_logger.add(
 _loguru_logger.add(
     str(LOG_DIR / "{time:YYYY-MM-DD}" / "analysis.log"),
     rotation="00:00",
-    retention=30,
+    retention="10 days",
     encoding="utf-8",
     enqueue=True,  # thread/process safe — single writer queue
     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}\n{exception}",

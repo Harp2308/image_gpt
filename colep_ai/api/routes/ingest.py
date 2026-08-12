@@ -6,7 +6,7 @@ import uuid
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from colep_ai.api.schemas.ingest import (
-    ConflictResponse, FileStatusRecord, IngestStartRequest,
+    ConflictResponse, FileStatusRecord, FolderJobResult, IngestStartRequest,
     IngestStartResponse, IngestStatusResponse,
 )
 from colep_ai.core.config import settings
@@ -25,17 +25,36 @@ ALLOWED_EXTENSIONS = (".xlsx", ".docx", ".doc")
 @router.post("/start/sharepoint", status_code=202)
 async def start_ingestion(request: IngestStartRequest):
     if request.mode == "sharepoint_folder":
-        folder_path = unquote(request.sharepoint_folder_path.strip())
-        existing = find_active_job_by_path(folder_path)
-        if existing:
-            raise HTTPException(409, detail={"existing_job_id": existing})
-        job_id = str(uuid.uuid4())
-        create_job(job_id, folder_path)
-        orchestrator_task.apply_async(
-            args=[job_id, folder_path, "sharepoint_folder"],
-            queue="orchestration",
+        results: list[FolderJobResult] = []
+
+        for raw_path in request.sharepoint_folder_paths:
+            folder_path = unquote(raw_path.strip())
+            existing = find_active_job_by_path(folder_path)
+            if existing:
+                results.append(FolderJobResult(
+                    folder_path=folder_path,
+                    status="skipped",
+                    existing_job_id=existing,
+                ))
+                continue
+
+            job_id = str(uuid.uuid4())
+            create_job(job_id, folder_path)
+            orchestrator_task.apply_async(
+                args=[job_id, folder_path, "sharepoint_folder"],
+                queue="orchestration",
+            )
+            results.append(FolderJobResult(
+                folder_path=folder_path,
+                status="started",
+                job_id=job_id,
+            ))
+
+        return IngestStartResponse(
+            results=results,
+            started=sum(1 for r in results if r.status == "started"),
+            skipped=sum(1 for r in results if r.status == "skipped"),
         )
-        return IngestStartResponse(job_id=job_id, message="Job started.", sharepoint_folder_path=folder_path)
 
     elif request.mode == "sharepoint_files":
         file_paths = [unquote(p.strip()) for p in request.sharepoint_file_paths]  # ← add

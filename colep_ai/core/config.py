@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     OPENAI_API_KEY: SecretStr = SecretStr("")
     OPENAI_ENDPOINT: SecretStr = SecretStr("")
-
+    OPENAI_MODEL: str = "gpt-5.1"
     # ------------------------------------------------------------------
     # Embedings
     # ------------------------------------------------------------------

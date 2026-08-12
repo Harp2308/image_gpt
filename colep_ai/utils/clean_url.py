@@ -15,5 +15,9 @@ def clean_link(link: str) -> str:
 
     return path
 
-map_link=""
-print(clean_link(map_link))
+l1=""
+l2=""
+l3=""
+print(clean_link(l1))
+print(clean_link(l2))
+print(clean_link(l3))

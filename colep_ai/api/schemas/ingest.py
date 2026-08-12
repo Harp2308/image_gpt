@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 class SharePointFolderRequest(BaseModel):
     mode: Literal["sharepoint_folder"] = "sharepoint_folder"
-    sharepoint_folder_path: str = Field(..., examples=["/ShopFloor/Line5"])
+    sharepoint_folder_paths: list[str] = Field(..., examples=[["/ShopFloor/Line5", "/ShopFloor/Line8"]])
 
 
 class SharePointFilesRequest(BaseModel):
@@ -27,14 +27,22 @@ IngestStartRequest = Annotated[
     Union[SharePointFolderRequest, SharePointFilesRequest],
     Field(discriminator="mode"),
 ]
+
 # ---------------------------------------------------------------------------
 # Response — POST /ingest/start
 # ---------------------------------------------------------------------------
 
+class FolderJobResult(BaseModel):
+    folder_path: str = Field(..., description="SharePoint folder path.")
+    status: Literal["started", "skipped"] = Field(..., description="Whether a new job was created or skipped due to an active conflict.")
+    job_id: str | None = Field(None, description="New job UUID if started.")
+    existing_job_id: str | None = Field(None, description="Existing active job UUID if skipped.")
+
+
 class IngestStartResponse(BaseModel):
-    job_id: str = Field(..., description="UUID of the created ingestion job.")
-    message: str = Field(..., description="Human-readable confirmation.")
-    sharepoint_folder_path: str
+    results: list[FolderJobResult]
+    started: int = Field(..., description="Number of folders successfully queued.")
+    skipped: int = Field(..., description="Number of folders skipped due to active job conflict.")
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +67,7 @@ class FileStatusRecord(BaseModel):
     folder_name: str = ""
     status: FileStatus
     error: str | None = None
-    reason: str | None = None 
+    reason: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
 
