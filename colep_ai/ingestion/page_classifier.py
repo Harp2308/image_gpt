@@ -10,6 +10,8 @@ Given a page image, returns one of four route labels:
 
 Usage:
     label = classify_page(page_image_path, client)
+    label = classify_page_azure(page_image_path, client)
+
 """
 
 import base64
@@ -17,15 +19,18 @@ from pathlib import Path
 from typing import Literal
 
 import anthropic
+from openai import AzureOpenAI
 
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
+from colep_ai.llms.llm_retry import with_openai_retry
 
 logger = get_logger(__name__)
 
 PageRoute = Literal["flowchart", "map", "sop", "skip"]
 
 MODEL =  settings.ANTHROPIC_MODEL # Fast + cheap — classification only
+OPENAI_MODEL = settings.OPENAI_MODEL
 
 SYSTEM_PROMPT = """You are a document page classifier for Colep Packaging industrial documents.
 You look at a page image and return exactly one classification label.
@@ -123,71 +128,133 @@ def classify_page(
     logger.info(f"classify_page | label={raw} | image={Path(page_image_path).name}")
     return raw  # type: ignore[return-value]
 
-
-from openai import AzureOpenAI
-OPENAI_MODEL = settings.OPENAI_MODEL
-def classify_page_openai(
+def classify_page_azure(
     page_image_path: str,
     client: AzureOpenAI,
 ) -> PageRoute:
     """
-    Classify a page image into a pipeline route using Azure OpenAI GPT-5.1.
-
+    Classify a page image into a pipeline route using Azure OpenAI.
+ 
     Args:
         page_image_path: Path to the rendered page PNG.
-        client: AzureOpenAI client.
-
+        client:          AzureOpenAI client.
+ 
     Returns:
         One of: "flowchart", "map", "sop", "skip"
+ 
+    Raises:
+        openai.RateLimitError after 3 retries with exponential backoff (60s/120s/240s).
+        Any other OpenAI exception immediately.
     """
-
     b64, media_type = _encode_image(page_image_path)
-
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{b64}",
+ 
+    response = with_openai_retry(
+        lambda: client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{b64}",
+                            },
                         },
-                    },
-                    {
-                        "type": "text",
-                        "text": CLASSIFICATION_PROMPT,
-                    },
-                ],
-            },
-        ],
-        max_tokens=10,
+                        {
+                            "type": "text",
+                            "text": CLASSIFICATION_PROMPT,
+                        },
+                    ],
+                },
+            ],
+            max_tokens=10,
+        ),
+        caller_label="classify_page_azure",
     )
-
+ 
     raw = response.choices[0].message.content.strip().lower()
-
-    valid: set[PageRoute] = {
-        "flowchart",
-        "map",
-        "sop",
-        "skip",
-    }
-
+ 
+    valid: set[PageRoute] = {"flowchart", "map", "sop", "skip"}
     if raw not in valid:
         logger.warning(
             f"classify_page_azure got unexpected label "
             f"'{raw}' for {page_image_path} — defaulting to 'sop'"
         )
         return "sop"
-
+ 
     logger.info(
         f"classify_page_azure | label={raw} | "
         f"image={Path(page_image_path).name}"
     )
+    return raw 
 
-    return raw  # type: ignore[return-value]
+# def classify_page_openai(
+#     page_image_path: str,
+#     client: AzureOpenAI,
+# ) -> PageRoute:
+#     """
+#     Classify a page image into a pipeline route using Azure OpenAI GPT-5.1.
+
+#     Args:
+#         page_image_path: Path to the rendered page PNG.
+#         client: AzureOpenAI client.
+
+#     Returns:
+#         One of: "flowchart", "map", "sop", "skip"
+#     """
+
+#     b64, media_type = _encode_image(page_image_path)
+
+#     response = client.chat.completions.create(
+#         model=OPENAI_MODEL,
+#         messages=[
+#             {
+#                 "role": "system",
+#                 "content": SYSTEM_PROMPT,
+#             },
+#             {
+#                 "role": "user",
+#                 "content": [
+#                     {
+#                         "type": "image_url",
+#                         "image_url": {
+#                             "url": f"data:{media_type};base64,{b64}",
+#                         },
+#                     },
+#                     {
+#                         "type": "text",
+#                         "text": CLASSIFICATION_PROMPT,
+#                     },
+#                 ],
+#             },
+#         ],
+#         max_tokens=10,
+#     )
+
+#     raw = response.choices[0].message.content.strip().lower()
+
+#     valid: set[PageRoute] = {
+#         "flowchart",
+#         "map",
+#         "sop",
+#         "skip",
+#     }
+
+#     if raw not in valid:
+#         logger.warning(
+#             f"classify_page_azure got unexpected label "
+#             f"'{raw}' for {page_image_path} — defaulting to 'sop'"
+#         )
+#         return "sop"
+
+#     logger.info(
+#         f"classify_page_azure | label={raw} | "
+#         f"image={Path(page_image_path).name}"
+#     )
+
+#     return raw  # type: ignore[return-value]

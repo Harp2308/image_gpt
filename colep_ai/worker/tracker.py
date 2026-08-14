@@ -300,6 +300,18 @@ def _increment_and_check(job_id: str, done: bool) -> None:
             # Not all files finished yet
             return
 
+        # Guard against double-finalization on retry pass:
+        # if job is already in a terminal state, do not overwrite it.
+        raw_job = r.get(_job_key(job_id))
+        if raw_job:
+            current_job_status = json.loads(raw_job).get("status")
+            if current_job_status in ("completed", "partial", "failed"):
+                logger.info(
+                    f"[tracker] job {job_id} already finalized as '{current_job_status}' "
+                    f"— skipping re-finalization (retry pass completion)"
+                )
+                return
+
         # All files accounted for — finalize job
         if current_failed == 0:
             final_status: JobStatus = "completed"
@@ -336,4 +348,103 @@ def get_file_status(job_id: str, filename: str) -> str | None:
         return json.loads(raw).get("status")
     except Exception:
         logger.exception(f"[tracker] get_file_status failed for {job_id}/{filename}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Retry dispatch support
+# ---------------------------------------------------------------------------
+
+def _retry_dispatched_key(job_id: str) -> str:
+    return f"job:{job_id}:retry_dispatched"
+
+
+def mark_retry_dispatched(job_id: str) -> None:
+    """
+    Set a flag on the job indicating the one-time retry has been dispatched.
+    Called by cleanup_task immediately before re-dispatching failed files.
+    Prevents subsequent cleanup_task completions from triggering another retry.
+    """
+    try:
+        r = _get_redis()
+        r.set(_retry_dispatched_key(job_id), "1", ex=TTL)
+        logger.info(f"[tracker] job {job_id} retry_dispatched flag set")
+    except Exception:
+        logger.exception(f"[tracker] mark_retry_dispatched failed for {job_id}")
+
+
+def is_retry_dispatched(job_id: str) -> bool:
+    """Returns True if the one-time retry has already been dispatched for this job."""
+    try:
+        r = _get_redis()
+        return r.exists(_retry_dispatched_key(job_id)) == 1
+    except Exception:
+        logger.exception(f"[tracker] is_retry_dispatched failed for {job_id}")
+        # Fail safe: return True to avoid triggering an unintended retry
+        return True
+
+
+def check_and_get_retry_files(job_id: str) -> list[dict] | None:
+    """
+    Called by cleanup_task after every file reaches a terminal state.
+
+    Returns a list of failed file records if ALL of the following are true:
+      - All files in the job are in a terminal state (done/failed/skipped)
+      - Job status is not 'completed' (at least one file failed)
+      - Retry has not already been dispatched for this job
+
+    Returns None if conditions are not met.
+
+    The returned records contain: filename, folder_name.
+    local_path is reconstructed by cleanup_task from settings.downloads_dir(job_id).
+
+    IMPORTANT: This function does NOT set the retry_dispatched flag.
+    The caller must call mark_retry_dispatched() immediately BEFORE dispatching
+    to prevent race conditions where two concurrent cleanup_task workers both
+    see the flag unset and both dispatch a retry.
+    """
+    try:
+        r = _get_redis()
+
+        # Cheapest check first
+        if r.exists(_retry_dispatched_key(job_id)) == 1:
+            return None
+
+        # Job must not be 'completed'
+        raw_job = r.get(_job_key(job_id))
+        if raw_job is None:
+            return None
+        job_record = json.loads(raw_job)
+        if job_record.get("status") == "completed":
+            return None
+
+        # All files must be in a terminal state
+        terminal_states = {"done", "failed", "skipped"}
+        all_records = []
+        for key in r.scan_iter(f"job:{job_id}:file:*"):
+            raw = r.get(key)
+            if raw is None:
+                continue
+            record = json.loads(raw)
+            if record.get("status") not in terminal_states:
+                # At least one file still in progress — not time to retry yet
+                return None
+            all_records.append(record)
+
+        if not all_records:
+            return None
+
+        # Collect failed files
+        failed = [rec for rec in all_records if rec.get("status") == "failed"]
+        if not failed:
+            return None
+
+        logger.info(
+            f"[tracker] job {job_id} all files terminal, "
+            f"{len(failed)} failed — retry conditions met"
+        )
+        return failed
+
+    except Exception:
+        logger.exception(f"[tracker] check_and_get_retry_files failed for {job_id}")
         return None

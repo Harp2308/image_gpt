@@ -13,7 +13,7 @@ import base64
 import json
 import sys
 from pathlib import Path
-from colep_ai.generation.claude_client import get_claude_client
+from colep_ai.llms.llm_retry import with_anthropic_retry
 import anthropic
  
 # ---------------------------------------------------------------------------
@@ -99,33 +99,42 @@ def load_image_b64(image_path: Path | str) -> tuple[str, str]:
     return data, media_type
  
  
-def extract_flowchart(image_path: Path | str, client: anthropic.AsyncAnthropic) -> dict:
-    """Send image to Sonnet and return parsed JSON."""
+def extract_flowchart(image_path: Path | str, client: anthropic.Anthropic) -> dict:
+    """
+    Send image to Claude and return parsed JSON.
+
+    Raises:
+        anthropic.RateLimitError after 3 retries with exponential backoff (60s/120s/240s).
+        Any other exception immediately.
+    """
     b64_data, media_type = load_image_b64(image_path)
  
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": b64_data,
+    response = with_anthropic_retry(
+        lambda: client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": b64_data,
+                            },
                         },
-                    },
-                    {
-                        "type": "text",
-                        "text": EXTRACTION_PROMPT,
-                    },
-                ],
-            }
-        ],
+                        {
+                            "type": "text",
+                            "text": EXTRACTION_PROMPT,
+                        },
+                    ],
+                }
+            ],
+        ),
+        caller_label="extract_flowchart",
     )
  
     raw_text = response.content[0].text.strip()
@@ -140,27 +149,27 @@ def extract_flowchart(image_path: Path | str, client: anthropic.AsyncAnthropic) 
  
     return json.loads(raw_text)
  
-import logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-logger = logging.getLogger(__name__)
-from pathlib import Path
+# import logging
+# logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+# logger = logging.getLogger(__name__)
+# from pathlib import Path
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    image_folder=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\O01_F003_2_Fluxograma_Fluxograma_produtivo_L_23_Montagem\pdf_pages_images"
+#     image_folder=r"D:\Harpreet Data\1_PROJECTS\Colep_ai\colepV1\outputs\O01_F003_2_Fluxograma_Fluxograma_produtivo_L_23_Montagem\pdf_pages_images"
 
-    DOCS_DIR = Path(image_folder)
-    images = list(DOCS_DIR.glob("*.png"))
-    client =get_claude_client()
-    for i in images[:1]:
-        try:
-            logger.info(f"Processing: {i.name}")            
-            result = extract_flowchart(i, client)
-            path=Path(f"{image_folder}/{i.stem}.json")
-            with open(path,"w",encoding="utf-8")as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
-            print("saved")
+#     DOCS_DIR = Path(image_folder)
+#     images = list(DOCS_DIR.glob("*.png"))
+#     client =get_claude_client()
+#     for i in images[:1]:
+#         try:
+#             logger.info(f"Processing: {i.name}")            
+#             result = extract_flowchart(i, client)
+#             path=Path(f"{image_folder}/{i.stem}.json")
+#             with open(path,"w",encoding="utf-8")as f:
+#                 json.dump(result, f, ensure_ascii=False, indent=2)
+#             print("saved")
 
-        except Exception as e:
-            logger.warning(f"❌ Failed: {i.name}")
-            logger.error(e)
+#         except Exception as e:
+#             logger.warning(f"❌ Failed: {i.name}")
+#             logger.error(e)

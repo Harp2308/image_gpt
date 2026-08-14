@@ -47,7 +47,7 @@ from colep_ai.worker.tracker import update_file_status
 #     is_already_ingested,
 #     upsert_ingestion_hash,
 # )
-
+from colep_ai.indexing.embedder import get_openai_client_sync
 logger = get_logger(__name__)
 
 
@@ -73,6 +73,7 @@ def _process_page(
     excel_path: str,
     page_number: int,
     claude_client,
+    openai_client,
     folder_name: str = "",
 ) -> tuple[int, bool, str | None]:
     """
@@ -90,15 +91,20 @@ def _process_page(
             excel_path=excel_path,
             page_number=page_number,
             claude_client=claude_client,
-             folder_name=folder_name,   
+            openai_client=openai_client,
+            folder_name=folder_name,   
         )
         return page_number, True, None
     except Exception as exc:
+        # Log with type prefix so the error string is always meaningful
+        # regardless of exception type (fixes the KeyError: "'error'" bug
+        # that occurred when RateLimitError was formatted as a dict key)
+        error_msg = f"{type(exc).__name__}: {exc}"
         logger.error(
-            f"[ingest] page {page_number} failed for {Path(excel_path).name}: {exc}",
+             f"[ingest] page {page_number} failed for {Path(excel_path).name}: {error_msg}",
             exc_info=True,
         )
-        return page_number, False, str(exc)
+        return page_number, False, error_msg
 
 
 @celery_app.task(
@@ -182,13 +188,13 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
         # Claude client is thread-safe — one instance shared across threads.
         # win32com is NOT used past this point — safe to thread.
         claude_client = get_claude_client_sync()
-
+        openai_client = get_openai_client_sync()
         failed_pages: list[int] = []
         succeeded_pages: list[int] = []
 
         with ThreadPoolExecutor(max_workers=settings.PAGE_THREAD_WORKERS) as executor:
             futures = {
-                executor.submit(_process_page, local_path, page, claude_client, folder_name): page
+                executor.submit(_process_page, local_path, page, claude_client,openai_client, folder_name): page
                 for page in range(1, total_pages + 1)
             }
             for future in as_completed(futures):
@@ -232,7 +238,7 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
 
     except Exception as exc:
         logger.exception(f"[ingest] job={job_id} file='{filename}' failed: {exc}")
-        update_file_status(job_id, filename, "failed", error=str(exc))
+        update_file_status(job_id, filename, "failed", error=f"{type(exc).__name__}: {exc}")
         # Re-raise to break the Celery chain.
         # index_task and cleanup_task will not run automatically.
         # cleanup_task is linked via on_failure callback (see below) to

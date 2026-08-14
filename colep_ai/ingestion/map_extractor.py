@@ -30,6 +30,7 @@ from pathlib import Path
 import anthropic
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
+from colep_ai.llms.llm_retry import with_anthropic_retry
 
 logger = get_logger(__name__)
 
@@ -399,13 +400,17 @@ def extract_map_zones(
             "text": build_map_prompt(image_meta),
         },
     ]
+     
+    response = with_anthropic_retry(
+        lambda: client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            max_tokens=8000,
+            tools=[MAP_ZONE_TOOL],
+            tool_choice={"type": "tool", "name": "record_map_zone_mapping"},
+            messages=[{"role": "user", "content": content}],
+        ),
+        caller_label="extract_map_zones",
 
-    response = client.messages.create(
-        model=settings.ANTHROPIC_MODEL,
-        max_tokens=8000,
-        tools=[MAP_ZONE_TOOL],
-        tool_choice={"type": "tool", "name": "record_map_zone_mapping"},
-        messages=[{"role": "user", "content": content}],
     )
 
     usage = response.usage

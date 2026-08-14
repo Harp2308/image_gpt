@@ -34,6 +34,7 @@ from pathlib import Path
 import anthropic
 from colep_ai.core.config import settings
 from colep_ai.core.logger import get_logger
+from colep_ai.llms.llm_retry import with_anthropic_retry
 
 logger = get_logger(__name__)
 
@@ -255,10 +256,16 @@ Call the `record_step_image_mapping` tool with your final structured answer.
 def extract_steps(
     full_page_image_path: str,
     image_meta: list[dict],
-    client:anthropic.AsyncAnthropic,
+    client:anthropic.Anthropic,
     api_key: str | None = None,
 ) -> dict:
-   
+    """
+    Extract step->image mapping from a page using Claude.
+ 
+    Raises:
+        anthropic.RateLimitError after 3 retries with exponential backoff (60s/120s/240s).
+        Any other exception immediately.
+    """
 
     full_b64, full_media_type = encode_image(full_page_image_path)
 
@@ -277,12 +284,15 @@ def extract_steps(
         },
     ]
 
-    response = client.messages.create(
-        model=settings.ANTHROPIC_MODEL,
-        max_tokens=10000,
-        tools=[STEP_MAPPING_TOOL],
-        tool_choice={"type": "tool", "name": "record_step_image_mapping"},
-        messages=[{"role": "user", "content": content}],
+    response = with_anthropic_retry(
+        lambda: client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            max_tokens=10000,
+            tools=[STEP_MAPPING_TOOL],
+            tool_choice={"type": "tool", "name": "record_step_image_mapping"},
+            messages=[{"role": "user", "content": content}],
+        ),
+        caller_label="extract_steps",
     )
     usage = response.usage
     input_tokens = usage.input_tokens

@@ -26,7 +26,7 @@ from colep_ai.ingestion.utils import normalize_filename,_log_stage,normalize_res
 from colep_ai.core.logger import get_logger
 from colep_ai.ingestion.flowchart_extractor import extract_flowchart
 from colep_ai.ingestion.map_extractor import extract_map_zones
-from colep_ai.ingestion.page_classifier import classify_page
+from colep_ai.ingestion.page_classifier import  classify_page_azure
 
 logger = get_logger("Ingestion_pipeline")
 
@@ -106,7 +106,7 @@ def run_pipeline(
     excel_path: str,
     page_number: int,  # 1-based, interface contract,
     claude_client: anthropic.AsyncAnthropic,
-    vision_client: vision.ImageAnnotatorClient = None ,
+    openai_client=None,
     folder_name: str = "",
 
 ) -> dict:
@@ -128,7 +128,7 @@ def run_pipeline(
 
     # Stage 3: Classify page type via LLM vision classifier
     out_path = settings.results_dir(source_file) / f"{source_file}_page_{page_number}_result.json"
-    page_route = classify_page(str(page_img), claude_client)
+    page_route = classify_page_azure(str(page_img),  openai_client)
     _log_stage("3 page_classification", t); t = time.monotonic()
 
     if page_route == "skip":
