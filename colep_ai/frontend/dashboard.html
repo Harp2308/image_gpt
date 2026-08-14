@@ -770,9 +770,20 @@ function renderModal(log) {
     </div>
   `;
 
-  // Collapsible context
+// Collapsible context
   const ctxHeader = document.getElementById('ctxHeader');
   const ctxBody   = document.getElementById('ctxBody');
+  if (ctxHeader) {
+    ctxHeader.addEventListener('click', () => {
+      const open = ctxBody.classList.toggle('open');
+      ctxHeader.classList.toggle('expanded', open);
+      ctxHeader.querySelector('span:first-child').textContent = open ? 'Hide full context' : 'Show full context';
+    });
+  }
+
+  // Collapsible classifier
+  const clsHeader = document.getElementById('clsHeader');
+  const clsBody   = document.getElementById('clsBody');
   if (clsHeader) {
     clsHeader.addEventListener('click', () => {
       const open = clsBody.classList.toggle('open');
