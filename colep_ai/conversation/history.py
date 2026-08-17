@@ -37,6 +37,7 @@ from colep_ai.core.logger import get_logger
 from colep_ai.database import cosmos_client as cosmos
 # from colep_ai.database import mongo_client as cosmos
 from colep_ai.database import redis_client as rclient
+from openai import AsyncAzureOpenAI
 
 logger = get_logger(__name__)
 
@@ -194,6 +195,46 @@ def build_history_messages(state: SessionState) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+async def generate_title(
+    openai_client: AsyncAzureOpenAI,
+    first_user_message: str,
+) -> str:
+    try:
+        resp = await openai_client.chat.completions.create(
+            model=settings.SUMMARY_MODEL,
+            max_completion_tokens=20,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Generate a short chat title (max 6 words) for the user's first message. "
+                        "Return ONLY the title. No quotes, no punctuation at end."
+                    ),
+                },
+                {"role": "user", "content": first_user_message},
+            ],
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as exc:
+        logger.warning(f"Title generation failed | error={exc}")
+        return first_user_message[:60].strip()
+
+async def maybe_set_title(
+    session_id: str,
+    turn_number: int,
+    role: str,
+    content: str,
+    openai_client,
+    cosmos_container,
+) -> None:
+    """Fire once: turn 1, user role only."""
+    if turn_number != 1 or role != "user":
+        return
+    title = await generate_title(openai_client, content)
+    await cosmos.update_title(cosmos_container, session_id, title)
+    logger.info(f"Title set | session_id={session_id} title={title}")
+
 
 def _count_turns(turns: list[dict]) -> int:
     """

@@ -18,6 +18,7 @@ router = APIRouter(tags=["Sessions"])
 class SessionMeta(BaseModel):
     session_id: str
     summary: str
+    title: str  
     user_name: str
     created_at: str
     updated_at: str

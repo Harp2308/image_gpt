@@ -43,6 +43,7 @@ from colep_ai.conversation.history import (
     load_or_create_session,
     save_turn,
     build_history_messages,
+    generate_title
 )
 from colep_ai.conversation.summariser import update_summary_incremental
 from colep_ai.database.redis_client import set_summary
@@ -50,11 +51,11 @@ from colep_ai.database.redis_client import set_summary
 # from colep_ai.database.mongo_client import append_turn as cosmos_append_turn
 from colep_ai.database.cosmos_client import update_summary as cosmos_update_summary
 from colep_ai.database.cosmos_client import append_turn as cosmos_append_turn
+from colep_ai.database.cosmos_client import update_title as cosmos_update_title
 
 from colep_ai.database.query_log_client import get_query_logs_container, write_query_log
 from colep_ai.core.config import settings as _settings
 from colep_ai.retrieval.reranker import rerank
-
 logger = get_logger(__name__)
 router = APIRouter(tags=["Chat"])
 
@@ -266,7 +267,7 @@ def settings_ttl() -> int:
 
 
 # ---------------------------------------------------------------------------
-# New background task — logging only, no impact on response path
+#  background task — logging ,Title only, no impact on response path
 # ---------------------------------------------------------------------------
 
 async def _log_query_background(
@@ -306,6 +307,18 @@ async def _log_query_background(
         from colep_ai.core.logger import get_logger
         get_logger(__name__).warning(f"Query log write failed (non-fatal) | {exc}")
 
+async def _set_session_title(
+    session_id: str,
+    first_message: str,
+    openai_client: AsyncAzureOpenAI,
+    cosmos_container,
+) -> None:
+    try:
+        title = await generate_title(openai_client, first_message)
+        await cosmos_update_title(cosmos_container, session_id, title)
+        logger.info(f"Session title set | session_id={session_id} title={title}")
+    except Exception as exc:
+        logger.warning(f"Title generation failed (non-fatal) | session_id={session_id} | error={exc}")
 
 # ---------------------------------------------------------------------------
 # Main endpoint
@@ -368,7 +381,15 @@ async def query(
         cosmos_container=cosmos_container,
     )
     _log_stage("user_turn_save", stage_start)
-
+     # Fire-and-forget title generation on first turn only
+    if next_turn_number == 1:
+        background_tasks.add_task(
+            _set_session_title,
+            session_id=session_id,
+            first_message=req.query,
+            openai_client=openai_client,
+            cosmos_container=cosmos_container,
+        )
     if user_evicted and user_evicted[0].get("role") == "user":
         await redis.setex(
             f"session:{session_id}:pending_evicted_user",

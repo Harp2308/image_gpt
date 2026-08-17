@@ -141,6 +141,17 @@ async def close_cosmos_client() -> None:
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+async def update_title(container, session_id: str, title: str) -> None:
+    patch_ops = [
+        {"op": "set", "path": "/title", "value": title},
+        {"op": "set", "path": "/updated_at", "value": _now_iso()},
+    ]
+    await container.patch_item(
+        item=session_id,
+        partition_key=session_id,
+        patch_operations=patch_ops,
+    )
+    logger.debug(f"Title set | session_id={session_id} title={title}")
 
 # ---------------------------------------------------------------------------
 # Session operations
@@ -299,7 +310,7 @@ async def list_sessions(container, limit: int = 100) -> list[dict]:
     enable_cross_partition_query parameter has been removed/deprecated.
     """
     query = (
-        "SELECT c.id, c.summary, c.user_id, c.user_name, c.created_at, c.updated_at "
+        "SELECT c.id, c.summary,c.title, c.user_id, c.user_name, c.created_at, c.updated_at "
         "FROM c "
         "WHERE c.doc_type = 'session' "
         "ORDER BY c.updated_at DESC "
@@ -313,6 +324,7 @@ async def list_sessions(container, limit: int = 100) -> list[dict]:
         sessions.append({
             "session_id": item["id"],
             "summary": item.get("summary", ""),
+            "title": item.get("title", ""),
             "user_id": item.get("user_id", ""),
             "user_name": item.get("user_name", ""),
             "created_at": item.get("created_at", ""),
