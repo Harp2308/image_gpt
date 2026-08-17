@@ -172,7 +172,7 @@ def classify_page_azure(
                     ],
                 },
             ],
-            max_tokens=10,
+            max_completion_tokens=10,
         ),
         caller_label="classify_page_azure",
     )

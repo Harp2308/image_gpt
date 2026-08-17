@@ -21,7 +21,7 @@ from colep_ai.database.query_log_client import ensure_query_logs_container, clos
 from colep_ai.api.routes.chat_session import router as chat_router
 from colep_ai.api.routes.history import router as history_router
 from colep_ai.api.routes.sessions import router as sessions_router
-from colep_ai.api.routes.admin import router as admin_router
+from colep_ai.api.routes.debugger import router as admin_router
 from colep_ai.api.routes.blob_viewer import router as blob_router
 logger = get_logger(__name__)
 

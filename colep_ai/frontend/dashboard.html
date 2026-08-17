@@ -583,7 +583,7 @@ function truncate(str, n) {
 // ---- Stats ----
 async function loadStats() {
   try {
-    const r = await fetch(`${API}/admin/stats`);
+    const r = await fetch(`${API}/debugger/stats`);
     const d = await r.json();
     document.getElementById('s-total').textContent = d.total_logs ?? '—';
     document.getElementById('s-up').textContent    = d.thumbs_up  ?? '—';
@@ -607,7 +607,7 @@ async function loadLogs(page = 0, filters = {}) {
   if (filters.feedback) params.set('feedback', filters.feedback);
 
   try {
-    const r = await fetch(`${API}/admin/logs?${params}`);
+    const r = await fetch(`${API}/debugger/logs?${params}`);
     const logs = await r.json();
 
     if (!logs.length) {
@@ -698,7 +698,7 @@ async function openModal(logId, sessionId) {
   body.innerHTML = `<div class="empty"><span class="spinner"></span>Loading...</div>`;
 
   try {
-    const r = await fetch(`${API}/admin/logs/${logId}?session_id=${sessionId}`);
+    const r = await fetch(`${API}/debugger/logs/${logId}?session_id=${sessionId}`);
     const log = await r.json();
     renderModal(log);
   } catch(e) {
@@ -788,7 +788,7 @@ function renderModal(log) {
 
 async function submitFeedback(logId, sessionId, feedback) {
   try {
-    await fetch(`${API}/admin/logs/${logId}/feedback`, {
+    await fetch(`${API}/debugger/logs/${logId}/feedback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feedback, session_id: sessionId }),

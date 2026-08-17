@@ -25,7 +25,7 @@ from colep_ai.database.query_log_client import (
 from colep_ai.core.logger import get_logger
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/debugger", tags=["Debug"])
 
 
 # ---------------------------------------------------------------------------

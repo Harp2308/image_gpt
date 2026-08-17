@@ -42,11 +42,11 @@ from colep_ai.ingestion.pipeline1 import get_total_pages, run_pipeline, _ensure_
 from colep_ai.ingestion.utils import normalize_filename
 from colep_ai.worker.celery_app import celery_app
 from colep_ai.worker.tracker import update_file_status
-# from colep_ai.database.ingestion_hash_store import (
-#     compute_file_hash,
-#     is_already_ingested,
-#     upsert_ingestion_hash,
-# )
+from colep_ai.database.ingestion_hash_store import (
+    compute_file_hash,
+    is_already_ingested,
+    upsert_ingestion_hash,
+)
 from colep_ai.indexing.embedder import get_openai_client_sync
 logger = get_logger(__name__)
 
@@ -101,8 +101,7 @@ def _process_page(
         # that occurred when RateLimitError was formatted as a dict key)
         error_msg = f"{type(exc).__name__}: {exc}"
         logger.error(
-             f"[ingest] page {page_number} failed for {Path(excel_path).name}: {error_msg}",
-            exc_info=True,
+             f"[ingest] page {page_number} failed for {Path(excel_path).name}: {error_msg}"
         )
         return page_number, False, error_msg
 
@@ -150,17 +149,17 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
         source_file = normalize_filename(excel_path.stem)
 
         settings.ensure_doc_dirs(source_file)
-        # file_hash = compute_file_hash(local_path)
-        # if is_already_ingested(source_file, file_hash):
-        #     update_file_status(job_id, filename, "ingesting_done")
-        #     logger.info(f"[ingest] job={job_id} file='{filename}' skipped — hash unchanged")
-        #     return
+        file_hash = compute_file_hash(local_path)
+        if is_already_ingested(source_file, file_hash):
+            update_file_status(job_id, filename, "ingesting_done")
+            logger.info(f"[ingest] job={job_id} file='{filename}' skipped — hash unchanged")
+            return
 
         # ── Stage 1 & 2: Excel → PDF → PNGs (sequential, win32com) ───────
         # These must complete before threading starts.
         # _ensure_pdf uses file-existence caching — safe to call on requeue.
         # _ensure_page_image renders ALL pages in one pass — also cached.
-        from colep_ai.ingestion.excel_to_image import pdf_to_images
+        from colep_ai.ingestion.excel_to_image2 import pdf_to_images
 
         pdf_path = _ensure_pdf(excel_path, source_file,folder_name)
         pdf_to_images(
@@ -233,7 +232,7 @@ def ingest_task(self, job_id: str, local_path: str, filename: str, folder_name: 
             )
 
         update_file_status(job_id, filename, "ingesting_done")
-        # upsert_ingestion_hash(source_file, folder_name, file_hash)
+        upsert_ingestion_hash(source_file, folder_name, file_hash)
         logger.info(f"[ingest] job={job_id} file='{filename}' ingestion complete")
 
     except Exception as exc:
