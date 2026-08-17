@@ -307,8 +307,7 @@ async def generate_answer(
     handler catches it and returns a clean 503.
     """
     answer_language = _answer_language_for(language)
-    system_prompt = _ANSWER_SYSTEM_PROMPT.format(answer_language=answer_language)
-
+    system_prompt = _ANSWER_SYSTEM_PROMPT
     logger.info(
         f"Generating answer | model={model} | answer_language={answer_language} "
         f"| history_turns={len(history_messages) if history_messages else 0}"

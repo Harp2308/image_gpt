@@ -66,8 +66,12 @@ RULE 2 — The assistant "Source" block always appears in this exact format:
   Extract source_file and line_number EXACTLY as written. Do not truncate or modify.
   If "Line Number" is absent, set followup_line_number to null.
 
-RULE 3 — If the current query explicitly mentions a different line number (e.g. "e para a linha 8?"),
-  it is NOT a follow-up. Set is_followup = false and let retrieval handle it fresh.
+RULE 3 — If the current query contains an explicit line reference (e.g. "L11", "Linha 8", 
+  "line 5"), do NOT treat it as a follow-up to a different line in history. 
+  Set is_followup = false and let retrieval handle it fresh.
+  If is_followup remains true for other reasons, the rephrased_query MUST preserve 
+  the line reference exactly as written — "L11" is never "Linha 1". 
+  Do NOT substitute or merge it with any line reference from history.
 
 RULE 4 — History may not be linear. If Turn 2 was a greeting or unrelated and Turn 1 was a
   retrieval answer, and the current query continues Turn 1's topic → bind to Turn 1's source_file
@@ -82,6 +86,8 @@ RULE 6 — Rephrase the query into a fully standalone question ONLY when is_foll
   - Be self-contained (no pronouns, no implicit references)
   - Be in the same language as the original query
   - Preserve the exact intent — do not add assumptions or expand scope
+  - NEVER replace or augment a line reference from the current query with one from history.
+  - If the user wrote "L11", the rephrased query must contain "L11", not "Linha 1" or any other variant.
 
 RULE 7 — Clarification response detection.
   If the most recent assistant turn was a clarification question (asked the user which line 
